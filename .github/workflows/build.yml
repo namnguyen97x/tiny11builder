@@ -11,6 +11,7 @@ on:
         options:
           - maker
           - core
+          - nano
       iso_url:
         description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
         required: false
@@ -190,7 +191,11 @@ jobs:
           
           # Determine script to run
           $buildType = $env:BUILD_TYPE
-          $scriptName = if ($buildType -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
+          $scriptName = switch ($buildType) {
+            'core' { 'tiny11Coremaker.ps1' }
+            'nano' { 'nano11maker.ps1' }
+            default { 'tiny11maker.ps1' }
+          }
           
           # Add NonInteractive flag for CI/CD
           $buildParams['NonInteractive'] = $true
@@ -217,8 +222,10 @@ jobs:
             $buildParams['RemoveStore'] = if ($removeStore -eq 'true') { 'yes' } else { 'no' }
             
             Write-Host "Debloat options: Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
-          } else {
+          } elseif ($buildType -eq 'core') {
             Write-Host "Core maker selected - optional debloat parameters ignored (core has fixed settings)"
+          } elseif ($buildType -eq 'nano') {
+            Write-Host "Nano maker selected - all debloat options are hardcoded (nano has aggressive fixed settings)"
           }
           
           Write-Host "Running: $scriptName"
@@ -230,8 +237,12 @@ jobs:
           # Run the builder script with splatting
           & ".\$scriptName" @buildParams
           
-          # Check if ISO was created
-          $isoPath = Join-Path $PSScriptRoot "tiny11.iso"
+          # Check if ISO was created (different names for different build types)
+          $isoName = switch ($buildType) {
+            'nano' { 'nano11.iso' }
+            default { 'tiny11.iso' }
+          }
+          $isoPath = Join-Path $PSScriptRoot $isoName
           if (Test-Path $isoPath) {
             Write-Host "ISO created successfully: $isoPath"
             $isoSize = (Get-Item $isoPath).Length / 1GB
@@ -245,9 +256,10 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: tiny11-iso-${{ github.event.inputs.build_type || 'maker' }}-${{ github.run_number }}
+          name: ${{ github.event.inputs.build_type || 'maker' }}-iso-${{ github.run_number }}
           path: |
             tiny11.iso
+            nano11.iso
             *.log
           retention-days: 7
           compression-level: 0
