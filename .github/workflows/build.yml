@@ -11,15 +11,13 @@ on:
         options:
           - maker
           - core
-      iso_drive:
-        description: 'ISO drive letter (will be mounted)'
-        required: true
-        default: 'E'
-        type: string
-      scratch_drive:
-        description: 'Scratch drive letter'
+      iso_url:
+        description: 'Windows ISO URL (optional, use ISO_URL secret if not provided)'
         required: false
-        default: 'D'
+        type: string
+      iso_path:
+        description: 'Local ISO file path (for self-hosted runners, optional)'
+        required: false
         type: string
       enable_debloat:
         description: 'Enable debloat features'
@@ -85,32 +83,69 @@ jobs:
           $PSVersionTable
           Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
           
-      - name: Mount Windows ISO
+      - name: Download and Mount Windows ISO
         shell: pwsh
+        env:
+          ISO_URL_SECRET: ${{ secrets.ISO_URL }}
+          ISO_URL_INPUT: ${{ github.event.inputs.iso_url }}
+          ISO_PATH_INPUT: ${{ github.event.inputs.iso_path }}
         run: |
-          # Check if ISO_URL is provided as secret
-          if ($env:ISO_URL) {
-            Write-Host "Downloading Windows ISO from provided URL..."
-            $isoPath = "$env:RUNNER_TEMP\windows.iso"
-            Invoke-WebRequest -Uri $env:ISO_URL -OutFile $isoPath -UseBasicParsing
-            
-            Write-Host "Mounting ISO..."
-            $drive = Mount-DiskImage -ImagePath $isoPath -PassThru | Get-Volume
-            $isoDrive = "$($drive.DriveLetter):"
-            Write-Host "ISO mounted at: $isoDrive"
-            echo "ISO_DRIVE=$isoDrive" >> $env:GITHUB_ENV
+          $ErrorActionPreference = 'Stop'
+          
+          # Determine ISO source
+          $isoFilePath = $null
+          
+          # Priority: Input ISO_URL > Secret ISO_URL > Input ISO_PATH
+          if ($env:ISO_URL_INPUT) {
+            Write-Host "Using ISO URL from workflow input..."
+            $isoFilePath = "$env:RUNNER_TEMP\windows.iso"
+            Write-Host "Downloading Windows ISO from: $env:ISO_URL_INPUT"
+            Invoke-WebRequest -Uri $env:ISO_URL_INPUT -OutFile $isoFilePath -UseBasicParsing
+          } elseif ($env:ISO_URL_SECRET) {
+            Write-Host "Using ISO URL from repository secret..."
+            $isoFilePath = "$env:RUNNER_TEMP\windows.iso"
+            Write-Host "Downloading Windows ISO from secret URL..."
+            Invoke-WebRequest -Uri $env:ISO_URL_SECRET -OutFile $isoFilePath -UseBasicParsing
+          } elseif ($env:ISO_PATH_INPUT -and (Test-Path $env:ISO_PATH_INPUT)) {
+            Write-Host "Using local ISO file path: $env:ISO_PATH_INPUT"
+            $isoFilePath = $env:ISO_PATH_INPUT
           } else {
-            Write-Host "No ISO_URL provided. Please mount ISO manually or provide ISO_URL secret."
-            Write-Host "Using drive letter from input: ${{ github.event.inputs.iso_drive }}"
-            echo "ISO_DRIVE=${{ github.event.inputs.iso_drive }}:" >> $env:GITHUB_ENV
+            Write-Error "No ISO source provided. Please set ISO_URL secret or provide iso_url/iso_path input."
+            exit 1
+          }
+          
+          # Verify ISO file exists
+          if (-not (Test-Path $isoFilePath)) {
+            Write-Error "ISO file not found at: $isoFilePath"
+            exit 1
+          }
+          
+          Write-Host "Mounting ISO file: $isoFilePath"
+          
+          # Mount ISO and get drive letter
+          try {
+            $mountResult = Mount-DiskImage -ImagePath $isoFilePath -PassThru -ErrorAction Stop
+            $volume = $mountResult | Get-Volume
+            $isoDriveLetter = $volume.DriveLetter
+            
+            if ($isoDriveLetter) {
+              $isoDrive = "$isoDriveLetter`:"
+              Write-Host "✓ ISO mounted successfully to drive: $isoDrive" -ForegroundColor Green
+              echo "ISO_DRIVE=$isoDrive" >> $env:GITHUB_ENV
+              echo "ISO_FILE_PATH=$isoFilePath" >> $env:GITHUB_ENV
+            } else {
+              Write-Error "Failed to get drive letter from mounted ISO"
+              exit 1
+            }
+          } catch {
+            Write-Error "Failed to mount ISO: $_"
+            exit 1
           }
           
       - name: Build Tiny11 ISO
         shell: pwsh
         env:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
-          ISO_DRIVE_INPUT: ${{ github.event.inputs.iso_drive || 'E' }}
-          SCRATCH_DRIVE_INPUT: ${{ github.event.inputs.scratch_drive || 'D' }}
           ENABLE_DEBLOAT: ${{ github.event.inputs.enable_debloat || 'yes' }}
           REMOVE_APPX: ${{ github.event.inputs.remove_appx || 'yes' }}
           REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'yes' }}
@@ -119,9 +154,15 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           
-          # Set drive letters
+          # Get ISO drive from mounted ISO
           $isoDrive = $env:ISO_DRIVE
-          $scratchDrive = if ($env:SCRATCH_DRIVE_INPUT) { "$($env:SCRATCH_DRIVE_INPUT):" } else { $PSScriptRoot }
+          if (-not $isoDrive) {
+            Write-Error "ISO drive not set. Mount step may have failed."
+            exit 1
+          }
+          
+          # Scratch drive will use runner temp or current directory
+          $scratchDrive = $PSScriptRoot
           
           Write-Host "Building Tiny11 ISO..."
           Write-Host "ISO Drive: $isoDrive"
@@ -131,12 +172,12 @@ jobs:
           # Build arguments
           $buildArgs = @()
           
+          # Extract drive letter (remove colon)
           if ($isoDrive -match '^([A-Z]):$') {
             $buildArgs += '-ISO', $Matches[1]
-          }
-          
-          if ($scratchDrive -match '^([A-Z]):$') {
-            $buildArgs += '-SCRATCH', $Matches[1]
+          } else {
+            Write-Error "Invalid ISO drive format: $isoDrive"
+            exit 1
           }
           
           # Add debloat parameters
@@ -194,13 +235,22 @@ jobs:
       - name: Cleanup
         if: always()
         shell: pwsh
+        env:
+          ISO_FILE_PATH: ${{ env.ISO_FILE_PATH }}
         run: |
           # Unmount ISO if we mounted it
-          if ($env:ISO_URL) {
-            Write-Host "Unmounting ISO..."
-            Get-DiskImage | Where-Object { $_.ImagePath -like "*windows.iso" } | Dismount-DiskImage -ErrorAction SilentlyContinue
+          if ($env:ISO_FILE_PATH) {
+            Write-Host "Unmounting ISO: $env:ISO_FILE_PATH"
+            try {
+              Get-DiskImage | Where-Object { $_.ImagePath -eq $env:ISO_FILE_PATH } | Dismount-DiskImage -ErrorAction Stop
+              Write-Host "✓ ISO unmounted successfully" -ForegroundColor Green
+            } catch {
+              Write-Warning "Failed to unmount ISO: $_"
+            }
+            
+            # Cleanup temporary ISO file if it was downloaded
+            if ($env:ISO_FILE_PATH -like "*RUNNER_TEMP*") {
+              Write-Host "Removing temporary ISO file..."
+              Remove-Item -Path $env:ISO_FILE_PATH -Force -ErrorAction SilentlyContinue
+            }
           }
-          
-          # Cleanup temporary files
-          Write-Host "Cleaning up temporary files..."
-          Remove-Item -Path "$env:RUNNER_TEMP\windows.iso" -ErrorAction SilentlyContinue
