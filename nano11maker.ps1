@@ -342,18 +342,29 @@ $patternsToRemove = @(
 )
 
 # Get all driver packages and remove the ones matching the patterns
-Get-ChildItem -Path $driverRepo -Directory | ForEach-Object {
+Get-ChildItem -Path $driverRepo -Directory -ErrorAction SilentlyContinue | ForEach-Object {
     $driverFolder = $_.Name
     foreach ($pattern in $patternsToRemove) {
         if ($driverFolder -like $pattern) {
             Write-Host "Removing non-essential driver package: $driverFolder"
-            Remove-Item -Path $_.FullName -Recurse -Force
+            try {
+                Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Stop
+            } catch {
+                Write-Host "  Warning: Failed to remove $driverFolder (continuing...)" -ForegroundColor Yellow
+            }
             break # Move to the next folder once a match is found
         }
     }
 }
 $fontsPath = Join-Path -Path $winDir -ChildPath "Fonts"
-if (Test-Path $fontsPath) { Get-ChildItem -Path $fontsPath -Exclude "segoe*.*", "tahoma*.*", "marlett.ttf", "8541oem.fon", "segui*.*", "consol*.*", "lucon*.*", "calibri*.*", "arial*.*", "times*.*", "cou*.*", "8*.*" | Remove-Item -Recurse -Force; Get-ChildItem -Path $fontsPath -Include "mingli*", "msjh*", "msyh*", "malgun*", "meiryo*", "yugoth*", "segoeuihistoric.ttf" | Remove-Item -Recurse -Force }
+if (Test-Path $fontsPath) { 
+    try {
+        Get-ChildItem -Path $fontsPath -Exclude "segoe*.*", "tahoma*.*", "marlett.ttf", "8541oem.fon", "segui*.*", "consol*.*", "lucon*.*", "calibri*.*", "arial*.*", "times*.*", "cou*.*", "8*.*" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $fontsPath -Include "mingli*", "msjh*", "msyh*", "malgun*", "meiryo*", "yugoth*", "segoeuihistoric.ttf" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Host "  Warning: Some fonts could not be removed (continuing...)" -ForegroundColor Yellow
+    }
+}
 Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Speech\Engines\TTS") -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$scratchDir\ProgramData\Microsoft\Windows Defender\Definition Updates" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$scratchDir\Windows\System32\InputMethod\CHS" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path "$scratchDir\Windows\System32\InputMethod\CHT" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path "$scratchDir\Windows\System32\InputMethod\JPN" -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path "$scratchDir\Windows\System32\InputMethod\KOR" -Recurse -Force -ErrorAction SilentlyContinue
@@ -361,13 +372,37 @@ Remove-Item -Path "$scratchDir\Windows\Temp\*" -Recurse -Force -ErrorAction Sile
 Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Web") -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Help") -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Cursors") -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "Removing Edge, WinRE, and OneDrive..."
-Remove-Item -Path "$scratchDir\Program Files (x86)\Microsoft\Edge*" -Recurse -Force 
-if ($architecture -eq 'amd64') { $folderPath = Get-ChildItem -Path "$scratchDir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName } 
-if ($folderPath) { Remove-Item -Path $folderPath -Recurse -Force  }
-Remove-Item -Path "$scratchDir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force
-Remove-Item -Path "$scratchDir\Windows\System32\Recovery\winre.wim" -Recurse -Force
-New-Item -Path "$scratchDir\Windows\System32\Recovery\winre.wim" -ItemType File -Force
-Remove-Item -Path "$scratchDir\Windows\System32\OneDriveSetup.exe" -Force 
+try {
+    Get-ChildItem -Path "$scratchDir\Program Files (x86)" -Filter "Microsoft\Edge*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    Write-Host "  Warning: Some Edge files could not be removed (continuing...)" -ForegroundColor Yellow
+}
+
+if ($architecture -eq 'amd64') { 
+    try {
+        $folderPath = Get-ChildItem -Path "$scratchDir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+        if ($folderPath) { 
+            Remove-Item -Path $folderPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        Write-Host "  Warning: Edge WebView WinSxS folder could not be removed (continuing...)" -ForegroundColor Yellow
+    }
+}
+
+Remove-Item -Path "$scratchDir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force -ErrorAction SilentlyContinue
+
+if (Test-Path "$scratchDir\Windows\System32\Recovery\winre.wim") {
+    try {
+        Remove-Item -Path "$scratchDir\Windows\System32\Recovery\winre.wim" -Recurse -Force -ErrorAction Stop
+        New-Item -Path "$scratchDir\Windows\System32\Recovery\winre.wim" -ItemType File -Force | Out-Null
+    } catch {
+        Write-Host "  Warning: WinRE could not be removed/replaced (continuing...)" -ForegroundColor Yellow
+    }
+}
+
+Remove-Item -Path "$scratchDir\Windows\System32\OneDriveSetup.exe" -Force -ErrorAction SilentlyContinue 
 & 'dism' '/English' "/image:$scratchDir" '/Cleanup-Image' '/StartComponentCleanup' '/ResetBase' 
 
 Write-Host "Taking ownership of the WinSxS folder. This might take a while..."
