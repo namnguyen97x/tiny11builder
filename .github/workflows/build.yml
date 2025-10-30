@@ -26,37 +26,37 @@ on:
           - Home
           - ProWorkstations
       remove_defender:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender (default: no, leave default for no)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender (default: false)'
         required: false
-        default: 'no'
+        default: 'false'
         type: choice
         options:
-          - yes
-          - no
+          - true
+          - false
       remove_ai:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove AI/Copilot components (default: yes)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove AI/Copilot components (default: true)'
         required: false
-        default: 'yes'
+        default: 'true'
         type: choice
         options:
-          - yes
-          - no
+          - true
+          - false
       remove_edge:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Edge browser (default: yes)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Edge browser (default: true)'
         required: false
-        default: 'yes'
+        default: 'true'
         type: choice
         options:
-          - yes
-          - no
+          - true
+          - false
       remove_store:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Store (default: yes)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Store (default: true)'
         required: false
-        default: 'yes'
+        default: 'true'
         type: choice
         options:
-          - yes
-          - no
+          - true
+          - false
   push:
     branches:
       - main
@@ -155,10 +155,10 @@ jobs:
         env:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
           VERSION_SELECTOR: ${{ github.event.inputs.version_selector || 'Auto' }}
-          REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || 'no' }}
-          REMOVE_AI: ${{ github.event.inputs.remove_ai || 'yes' }}
-          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'yes' }}
-          REMOVE_STORE: ${{ github.event.inputs.remove_store || 'yes' }}
+          REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || 'false' }}
+          REMOVE_AI: ${{ github.event.inputs.remove_ai || 'true' }}
+          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'true' }}
+          REMOVE_STORE: ${{ github.event.inputs.remove_store || 'true' }}
         run: |
           $ErrorActionPreference = 'Stop'
           
@@ -205,15 +205,16 @@ jobs:
             Write-Host "Adding optional debloat parameters for maker..."
             
             # Use environment variables with defaults
-            $removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'no' }
-            $removeAI = if ($env:REMOVE_AI) { $env:REMOVE_AI } else { 'yes' }
-            $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'yes' }
-            $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'yes' }
+            $removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'false' }
+            $removeAI = if ($env:REMOVE_AI) { $env:REMOVE_AI } else { 'true' }
+            $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'true' }
+            $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
             
-            $buildParams['RemoveDefender'] = $removeDefender
-            $buildParams['RemoveAI'] = $removeAI
-            $buildParams['RemoveEdge'] = $removeEdge
-            $buildParams['RemoveStore'] = $removeStore
+            # Convert true/false to yes/no for script parameters
+            $buildParams['RemoveDefender'] = if ($removeDefender -eq 'true') { 'yes' } else { 'no' }
+            $buildParams['RemoveAI'] = if ($removeAI -eq 'true') { 'yes' } else { 'no' }
+            $buildParams['RemoveEdge'] = if ($removeEdge -eq 'true') { 'yes' } else { 'no' }
+            $buildParams['RemoveStore'] = if ($removeStore -eq 'true') { 'yes' } else { 'no' }
             
             Write-Host "Debloat options: Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
           } else {
