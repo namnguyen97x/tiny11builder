@@ -33,7 +33,7 @@ on:
           - yes
           - no
       remove_edge:
-        description: '⚠️ MAKER ONLY: Remove Microsoft Edge (default: yes)'
+        description: '⚠️ MAKER ONLY: Remove Microsoft Edge browser (default: yes)'
         required: false
         default: 'yes'
         type: choice
