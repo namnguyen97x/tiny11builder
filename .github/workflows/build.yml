@@ -12,12 +12,9 @@ on:
           - maker
           - core
       iso_url:
-        description: 'Windows ISO URL (optional, use ISO_URL secret if not provided)'
+        description: 'Windows ISO URL (optional, defaults to Windows 11 25H2 if not provided)'
         required: false
-        type: string
-      iso_path:
-        description: 'Local ISO file path (for self-hosted runners, optional)'
-        required: false
+        default: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso'
         type: string
   push:
     branches:
@@ -48,29 +45,35 @@ jobs:
         env:
           ISO_URL_SECRET: ${{ secrets.ISO_URL }}
           ISO_URL_INPUT: ${{ github.event.inputs.iso_url }}
-          ISO_PATH_INPUT: ${{ github.event.inputs.iso_path }}
+          DEFAULT_ISO_URL: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso'
         run: |
           $ErrorActionPreference = 'Stop'
           
           # Determine ISO source
-          $isoFilePath = $null
+          # Priority: Input ISO_URL > Secret ISO_URL > Default URL
+          $isoUrl = $null
           
-          # Priority: Input ISO_URL > Secret ISO_URL > Input ISO_PATH
           if ($env:ISO_URL_INPUT) {
             Write-Host "Using ISO URL from workflow input..."
-            $isoFilePath = "$env:RUNNER_TEMP\windows.iso"
-            Write-Host "Downloading Windows ISO from: $env:ISO_URL_INPUT"
-            Invoke-WebRequest -Uri $env:ISO_URL_INPUT -OutFile $isoFilePath -UseBasicParsing
+            $isoUrl = $env:ISO_URL_INPUT
           } elseif ($env:ISO_URL_SECRET) {
             Write-Host "Using ISO URL from repository secret..."
-            $isoFilePath = "$env:RUNNER_TEMP\windows.iso"
-            Write-Host "Downloading Windows ISO from secret URL..."
-            Invoke-WebRequest -Uri $env:ISO_URL_SECRET -OutFile $isoFilePath -UseBasicParsing
-          } elseif ($env:ISO_PATH_INPUT -and (Test-Path $env:ISO_PATH_INPUT)) {
-            Write-Host "Using local ISO file path: $env:ISO_PATH_INPUT"
-            $isoFilePath = $env:ISO_PATH_INPUT
+            $isoUrl = $env:ISO_URL_SECRET
           } else {
-            Write-Error "No ISO source provided. Please set ISO_URL secret or provide iso_url/iso_path input."
+            Write-Host "Using default Windows 11 ISO URL..."
+            $isoUrl = $env:DEFAULT_ISO_URL
+          }
+          
+          $isoFilePath = "$env:RUNNER_TEMP\windows.iso"
+          
+          Write-Host "Downloading Windows ISO from: $isoUrl"
+          Write-Host "This may take a while depending on your connection speed..."
+          
+          try {
+            Invoke-WebRequest -Uri $isoUrl -OutFile $isoFilePath -UseBasicParsing
+            Write-Host "✓ ISO downloaded successfully" -ForegroundColor Green
+          } catch {
+            Write-Error "Failed to download ISO: $_"
             exit 1
           }
           
@@ -79,6 +82,9 @@ jobs:
             Write-Error "ISO file not found at: $isoFilePath"
             exit 1
           }
+          
+          $isoSize = (Get-Item $isoFilePath).Length / 1GB
+          Write-Host "Downloaded ISO size: $([math]::Round($isoSize, 2)) GB"
           
           Write-Host "Mounting ISO file: $isoFilePath"
           
