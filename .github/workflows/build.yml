@@ -27,7 +27,7 @@ on:
           - Home
           - ProWorkstations
       remove_defender:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender (default: false)'
+        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove Windows Defender (default: false)'
         required: false
         default: 'false'
         type: choice
@@ -35,7 +35,7 @@ on:
           - true
           - false
       remove_ai:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove AI/Copilot components (default: true)'
+        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove AI/Copilot components (default: true)'
         required: false
         default: 'true'
         type: choice
@@ -43,7 +43,7 @@ on:
           - true
           - false
       remove_edge:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Edge browser (default: true)'
+        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove Microsoft Edge browser (default: true)'
         required: false
         default: 'true'
         type: choice
@@ -51,7 +51,7 @@ on:
           - true
           - false
       remove_store:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Store (default: true)'
+        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove Microsoft Store (default: true)'
         required: false
         default: 'true'
         type: choice
@@ -225,7 +225,7 @@ jobs:
           } elseif ($buildType -eq 'core') {
             Write-Host "Core maker selected - optional debloat parameters ignored (core has fixed settings)"
           } elseif ($buildType -eq 'nano') {
-            Write-Host "Nano maker selected - all debloat options are hardcoded (nano has aggressive fixed settings)"
+            Write-Host "Nano maker selected - optional debloat parameters ignored (nano has aggressive fixed settings)"
           }
           
           Write-Host "Running: $scriptName"
