@@ -17,7 +17,7 @@ on:
         default: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso'
         type: string
       remove_defender:
-        description: '⚠️ MAKER ONLY: Remove Windows Defender (default: no)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender (default: no)'
         required: false
         default: 'no'
         type: choice
@@ -25,7 +25,7 @@ on:
           - yes
           - no
       remove_ai:
-        description: '⚠️ MAKER ONLY: Remove AI/Copilot components (default: yes)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove AI/Copilot components (default: yes)'
         required: false
         default: 'yes'
         type: choice
@@ -33,7 +33,7 @@ on:
           - yes
           - no
       remove_edge:
-        description: '⚠️ MAKER ONLY: Remove Microsoft Edge browser (default: yes)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Edge browser (default: yes)'
         required: false
         default: 'yes'
         type: choice
@@ -41,7 +41,7 @@ on:
           - yes
           - no
       remove_store:
-        description: '⚠️ MAKER ONLY: Remove Microsoft Store (default: yes)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Store (default: yes)'
         required: false
         default: 'yes'
         type: choice
