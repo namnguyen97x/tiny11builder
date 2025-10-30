@@ -395,7 +395,12 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         $storePackages = $allPackages | Where-Object { $_.PackageName -like '*WindowsStore*' -or $_.PackageName -like '*StorePurchaseApp*' -or $_.PackageName -like '*Store.Engagement*' }
         foreach ($storePkg in $storePackages) {
             Write-Output "  Removing: $($storePkg.PackageName)"
-            Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $storePkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+            try {
+                Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $storePkg.PackageName -ErrorAction Stop | Out-Null
+                Write-Output "    ✓ Removed successfully" -ForegroundColor Green
+            } catch {
+                Write-Output "    ⚠ Warning: Failed to remove $($storePkg.PackageName) - $($_.Exception.Message)" -ForegroundColor Yellow
+            }
         }
     }
     
@@ -405,7 +410,12 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         $aiPackages = $allPackages | Where-Object { $_.PackageName -like '*Copilot*' -or $_.PackageName -like '*549981C3F5F10*' }
         foreach ($aiPkg in $aiPackages) {
             Write-Output "  Removing: $($aiPkg.PackageName)"
-            Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $aiPkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+            try {
+                Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $aiPkg.PackageName -ErrorAction Stop | Out-Null
+                Write-Output "    ✓ Removed successfully" -ForegroundColor Green
+            } catch {
+                Write-Output "    ⚠ Warning: Failed to remove $($aiPkg.PackageName) - $($_.Exception.Message)" -ForegroundColor Yellow
+            }
         }
     }
 } else {
@@ -506,7 +516,10 @@ if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
     
     foreach ($package in $filteredPackages) {
         Write-Output "Removing $package"
-        & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
+        $result = & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package" 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($result | Select-String -Pattern "Error|failed|not found" -Quiet)) {
+            Write-Output "  Warning: Failed to remove $package (continuing...)" -ForegroundColor Yellow
+        }
     }
 
     # Remove Edge only if RemoveEdge = yes

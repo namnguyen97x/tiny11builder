@@ -387,7 +387,10 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
     }
     foreach ($package in $packagesToRemove) {
         write-host "Removing $package :"
-        & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
+        $result = & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package" 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($result | Select-String -Pattern "Error|failed|not found" -Quiet)) {
+            Write-Host "  Warning: Failed to remove $package (continuing...)" -ForegroundColor Yellow
+        }
     }
 
     Write-Host "Removing of system apps complete! Now proceeding to removal of system packages..."
