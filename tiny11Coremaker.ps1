@@ -126,8 +126,14 @@ if ((Test-Path "$DriveLetter\sources\boot.wim") -eq $false -or (Test-Path "$Driv
 
 Write-Host "Copying Windows image..."
 Copy-Item -Path "$DriveLetter\*" -Destination "$mainOSDrive\tiny11" -Recurse -Force > null
-Set-ItemProperty -Path "$mainOSDrive\tiny11\sources\install.esd" -Name IsReadOnly -Value $false > $null 2>&1
-Remove-Item "$mainOSDrive\tiny11\sources\install.esd" > $null 2>&1
+
+# Remove install.esd if it exists (we only need install.wim)
+if (Test-Path "$mainOSDrive\tiny11\sources\install.esd") {
+    Set-ItemProperty -Path "$mainOSDrive\tiny11\sources\install.esd" -Name IsReadOnly -Value $false > $null 2>&1
+    Remove-Item "$mainOSDrive\tiny11\sources\install.esd" -Force > $null 2>&1
+    Write-Host "Removed install.esd (using install.wim instead)"
+}
+
 Write-Host "Copy complete!"
 if (-not $NonInteractive) {
     Start-Sleep -Seconds 2
@@ -152,7 +158,7 @@ if ($NonInteractive) {
     $index = Read-Host "Please enter the image index"
 }
 Write-Host "Mounting Windows image. This may take a while."
-$wimFilePath = "$($env:SystemDrive)\tiny11\sources\install.wim" 
+$wimFilePath = "$mainOSDrive\tiny11\sources\install.wim" 
 & takeown "/F" $wimFilePath 
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
 try {
@@ -161,9 +167,9 @@ try {
     # This block will catch the error and suppress it.
 }
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\scratchdir" > $null
-& dism /English "/mount-image" "/imagefile:$($env:SystemDrive)\tiny11\sources\install.wim" "/index:$index" "/mountdir:$($env:SystemDrive)\scratchdir"
+& dism /English "/mount-image" "/imagefile:$mainOSDrive\tiny11\sources\install.wim" "/index:$index" "/mountdir:$mainOSDrive\scratchdir"
 
-$imageIntl = & dism /English /Get-Intl "/Image:$($env:SystemDrive)\scratchdir"
+$imageIntl = & dism /English /Get-Intl "/Image:$mainOSDrive\scratchdir"
 $languageLine = $imageIntl -split '\n' | Where-Object { $_ -match 'Default system UI language : ([a-zA-Z]{2}-[a-zA-Z]{2})' }
 
 if ($languageLine) {
@@ -197,20 +203,20 @@ Write-Host "Mounting complete! Performing removal of applications..."
 # Sử dụng debloater module nếu được enable
 if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
     Write-Host "Using integrated debloater from Windows-ISO-Debloater..."
-    Remove-DebloatPackages -MountPath "$($env:SystemDrive)\scratchdir" `
+    Remove-DebloatPackages -MountPath "$mainOSDrive\scratchdir" `
         -RemoveAppx:($RemoveAppx -eq 'yes') `
         -RemoveCapabilities:($RemoveCapabilities -eq 'yes') `
         -RemoveWindowsPackages:($RemoveWindowsPackages -eq 'yes') `
         -LanguageCode $languageCode
     
-    Remove-DebloatFiles -MountPath "$($env:SystemDrive)\scratchdir" `
+    Remove-DebloatFiles -MountPath "$mainOSDrive\scratchdir" `
         -RemoveEdge:($RemoveEdge -eq 'yes') `
         -RemoveOneDrive:($RemoveOneDrive -eq 'yes') `
         -Architecture $architecture
 } else {
     # Fallback to original method
     Write-Host "Using original package removal method..."
-    $packages = & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Get-ProvisionedAppxPackages' |
+    $packages = & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/Get-ProvisionedAppxPackages' |
         ForEach-Object {
             if ($_ -match 'PackageName : (.*)') {
                 $matches[1]
@@ -224,12 +230,12 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
     }
     foreach ($package in $packagesToRemove) {
         write-host "Removing $package :"
-        & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
+        & 'dism' '/English' "/image:$mainOSDrive\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
     }
 
     Write-Host "Removing of system apps complete! Now proceeding to removal of system packages..."
     
-    $scratchDir = "$($env:SystemDrive)\scratchdir"
+    $scratchDir = "$mainOSDrive\scratchdir"
     $packagePatterns = @(
         "Microsoft-Windows-InternetExplorer-Optional-Package~31bf3856ad364e35",
         "Microsoft-Windows-Kernel-LA57-FoD-Package~31bf3856ad364e35~amd64",
