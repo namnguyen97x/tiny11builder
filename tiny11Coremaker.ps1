@@ -1,15 +1,22 @@
 #---------[ Parameters ]---------#
 param (
+    [ValidatePattern('^[c-zC-Z]$')][string]$ISO,
+    [switch]$NonInteractive = $false
 )
 
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
-    Write-Host "Your current PowerShell Execution Policy is set to Restricted, which prevents scripts from running. Do you want to change it to RemoteSigned? (yes/no)"
-    $response = Read-Host
-    if ($response -eq 'yes') {
-        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false
+    if ($NonInteractive) {
+        Write-Host "Execution policy is Restricted. Attempting to set to RemoteSigned..."
+        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false -Force
     } else {
-        Write-Host "The script cannot be run without changing the execution policy. Exiting..."
-        exit
+        Write-Host "Your current PowerShell Execution Policy is set to Restricted, which prevents scripts from running. Do you want to change it to RemoteSigned? (yes/no)"
+        $response = Read-Host
+        if ($response -eq 'yes') {
+            Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false
+        } else {
+            Write-Host "The script cannot be run without changing the execution policy. Exiting..."
+            exit
+        }
     }
 }
 
@@ -55,25 +62,58 @@ Start-Transcript -Path "$PSScriptRoot\tiny11.log"
 # Ask the user for input
 Write-Host "Welcome to tiny11 core builder! BETA 09-05-25"
 Write-Host "This script generates a significantly reduced Windows 11 image. However, it's not suitable for regular use due to its lack of serviceability - you can't add languages, updates, or features post-creation. tiny11 Core is not a full Windows 11 substitute but a rapid testing or development tool, potentially useful for VM environments."
-Write-Host "Do you want to continue? (y/n)"
-$input = Read-Host
+
+if ($NonInteractive) {
+    Write-Host "Non-interactive mode enabled. Continuing automatically..."
+    $input = 'y'
+} else {
+    Write-Host "Do you want to continue? (y/n)"
+    $input = Read-Host
+}
 
 if ($input -eq 'y') {
     Write-Host "Off we go..."
-Start-Sleep -Seconds 3
-Clear-Host
+    if (-not $NonInteractive) {
+        Start-Sleep -Seconds 3
+        Clear-Host
+    }
 
 $mainOSDrive = $env:SystemDrive
 $hostArchitecture = $Env:PROCESSOR_ARCHITECTURE
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\tiny11\sources" >null
-$DriveLetter = Read-Host "Please enter the drive letter for the Windows 11 image"
-$DriveLetter = $DriveLetter + ":"
+
+# Use ISO parameter if provided, otherwise prompt
+if ($ISO) {
+    $DriveLetter = $ISO + ":"
+    Write-Host "Using ISO drive from parameter: $DriveLetter"
+} else {
+    if ($NonInteractive) {
+        Write-Error "ISO parameter is required in non-interactive mode. Please provide -ISO parameter."
+        exit 1
+    }
+    $DriveLetter = Read-Host "Please enter the drive letter for the Windows 11 image"
+    $DriveLetter = $DriveLetter + ":"
+}
 
 if ((Test-Path "$DriveLetter\sources\boot.wim") -eq $false -or (Test-Path "$DriveLetter\sources\install.wim") -eq $false) {
     if ((Test-Path "$DriveLetter\sources\install.esd") -eq $true) {
         Write-Host "Found install.esd, converting to install.wim..."
         &  'dism' '/English' "/Get-WimInfo" "/wimfile:$DriveLetter\sources\install.esd"
-        $index = Read-Host "Please enter the image index"
+        
+        if ($NonInteractive) {
+            # Auto-detect image index (use first available index, usually 1)
+            $wimInfo = & 'dism' '/English' "/Get-WimInfo" "/wimfile:$DriveLetter\sources\install.esd"
+            $index = 1
+            # Try to find the first index in the output
+            $indexLines = $wimInfo | Select-String -Pattern 'Index : (\d+)'
+            if ($indexLines) {
+                $index = [int]($indexLines[0].Matches[0].Groups[1].Value)
+            }
+            Write-Host "Auto-detected image index: $index"
+        } else {
+            $index = Read-Host "Please enter the image index"
+        }
+        
         Write-Host ' '
         Write-Host 'Converting install.esd to install.wim. This may take a while...'
         & 'DISM' /Export-Image /SourceImageFile:"$DriveLetter\sources\install.esd" /SourceIndex:$index /DestinationImageFile:"$mainOSDrive\tiny11\sources\install.wim" /Compress:max /CheckIntegrity
@@ -89,11 +129,28 @@ Copy-Item -Path "$DriveLetter\*" -Destination "$mainOSDrive\tiny11" -Recurse -Fo
 Set-ItemProperty -Path "$mainOSDrive\tiny11\sources\install.esd" -Name IsReadOnly -Value $false > $null 2>&1
 Remove-Item "$mainOSDrive\tiny11\sources\install.esd" > $null 2>&1
 Write-Host "Copy complete!"
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    Clear-Host
+}
 Write-Host "Getting image information:"
 &  'dism' '/English' "/Get-WimInfo" "/wimfile:$mainOSDrive\tiny11\sources\install.wim"
-$index = Read-Host "Please enter the image index"
+
+if ($NonInteractive) {
+    # Auto-detect image index (use first available index, usually 1)
+    $wimInfo = & 'dism' '/English' "/Get-WimInfo" "/wimfile:$mainOSDrive\tiny11\sources\install.wim"
+    $index = 1
+    # Try to find the first index in the output
+    $indexLines = $wimInfo | Select-String -Pattern 'Index : (\d+)'
+    if ($indexLines) {
+        $index = [int]($indexLines[0].Matches[0].Groups[1].Value)
+        Write-Host "Auto-detected image index: $index"
+    } else {
+        Write-Host "Could not auto-detect index, using default: 1"
+    }
+} else {
+    $index = Read-Host "Please enter the image index"
+}
 Write-Host "Mounting Windows image. This may take a while."
 $wimFilePath = "$($env:SystemDrive)\tiny11\sources\install.wim" 
 & takeown "/F" $wimFilePath 
@@ -210,7 +267,12 @@ Start-Sleep -Seconds 1
 Clear-Host
 
 Write-Host "Do you want to enable .NET 3.5? This cannot be done after the image has been created! (y/n)"
-$input = Read-Host
+if ($NonInteractive) {
+    $input = 'n'
+    Write-Host "Non-interactive mode: Skipping .NET 3.5 (default: no)"
+} else {
+    $input = Read-Host
+}
 
 if ($input -eq 'y') {
     Write-Host "Enabling .NET 3.5..."
@@ -625,7 +687,11 @@ if ([System.IO.Directory]::Exists($ADKDepTools)) {
 
 # Finishing up
 Write-Host "Creation completed! Press any key to exit the script..."
-Read-Host "Press Enter to continue"
+if ($NonInteractive) {
+    Write-Host "Build complete! Cleaning up..."
+} else {
+    Read-Host "Press Enter to continue"
+}
 Write-Host "Performing Cleanup..."
 Remove-Item -Path "$mainOSDrive\tiny11" -Recurse -Force >null
 Remove-Item -Path "$mainOSDrive\scratchdir" -Recurse -Force >null

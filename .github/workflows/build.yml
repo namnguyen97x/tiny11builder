@@ -181,6 +181,9 @@ jobs:
           $buildType = $env:BUILD_TYPE
           $scriptName = if ($buildType -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
           
+          # Add NonInteractive flag for CI/CD
+          $buildArgs += '-NonInteractive'
+          
           # Add optional debloat parameters only for maker
           if ($buildType -eq 'maker') {
             Write-Host "Adding optional debloat parameters for maker..."
