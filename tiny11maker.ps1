@@ -36,7 +36,10 @@ param (
     [ValidateSet('yes','no')][string]$RemoveDefender = 'no',
     [ValidateSet('yes','no')][string]$RemoveAI = 'yes',
     [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveStore = 'yes'
+    [ValidateSet('yes','no')][string]$RemoveStore = 'yes',
+    
+    # Non-interactive mode for CI/CD
+    [switch]$NonInteractive = $false
 )
 
 if (-not $SCRATCH) {
@@ -101,13 +104,18 @@ function Remove-RegistryValue {
 #---------[ Execution ]---------#
 # Check if PowerShell execution is restricted
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
-    Write-Output "Your current PowerShell Execution Policy is set to Restricted, which prevents scripts from running. Do you want to change it to RemoteSigned? (yes/no)"
-    $response = Read-Host
-    if ($response -eq 'yes') {
-        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false
+    if ($NonInteractive) {
+        Write-Output "Execution policy is Restricted. Attempting to set to RemoteSigned..."
+        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false -Force
     } else {
-        Write-Output "The script cannot be run without changing the execution policy. Exiting..."
-        exit
+        Write-Output "Your current PowerShell Execution Policy is set to Restricted, which prevents scripts from running. Do you want to change it to RemoteSigned? (yes/no)"
+        $response = Read-Host
+        if ($response -eq 'yes') {
+            Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Confirm:$false
+        } else {
+            Write-Output "The script cannot be run without changing the execution policy. Exiting..."
+            exit
+        }
     }
 }
 
@@ -142,6 +150,10 @@ $hostArchitecture = $Env:PROCESSOR_ARCHITECTURE
 New-Item -ItemType Directory -Force -Path "$ScratchDisk\tiny11\sources" | Out-Null
 do {
     if (-not $ISO) {
+        if ($NonInteractive) {
+            Write-Error "ISO parameter is required in non-interactive mode. Please provide -ISO parameter."
+            exit 1
+        }
         $DriveLetter = Read-Host "Please enter the drive letter for the Windows 11 image"
     } else {
         $DriveLetter = $ISO
@@ -149,16 +161,33 @@ do {
     if ($DriveLetter -match '^[c-zC-Z]$') {
         $DriveLetter = $DriveLetter + ":"
         Write-Output "Drive letter set to $DriveLetter"
+        break
     } else {
+        if ($NonInteractive) {
+            Write-Error "Invalid drive letter format: $DriveLetter"
+            exit 1
+        }
         Write-Output "Invalid drive letter. Please enter a letter between C and Z."
     }
-} while ($DriveLetter -notmatch '^[c-zC-Z]:$')
+} while ($DriveLetter -notmatch '^[c-zC-Z]:$' -and -not $NonInteractive)
 
 if ((Test-Path "$DriveLetter\sources\boot.wim") -eq $false -or (Test-Path "$DriveLetter\sources\install.wim") -eq $false) {
     if ((Test-Path "$DriveLetter\sources\install.esd") -eq $true) {
         Write-Output "Found install.esd, converting to install.wim..."
         Get-WindowsImage -ImagePath $DriveLetter\sources\install.esd
-        $index = Read-Host "Please enter the image index"
+        
+        if ($NonInteractive) {
+            # Auto-detect image index (use first available index, usually 1)
+            $wimInfo = Get-WindowsImage -ImagePath "$DriveLetter\sources\install.esd"
+            $index = 1
+            if ($wimInfo) {
+                $index = $wimInfo[0].ImageIndex
+            }
+            Write-Output "Auto-detected image index: $index"
+        } else {
+            $index = Read-Host "Please enter the image index"
+        }
+        
         Write-Output ' '
         Write-Output 'Converting install.esd to install.wim. This may take a while...'
         Export-WindowsImage -SourceImagePath $DriveLetter\sources\install.esd -SourceIndex $index -DestinationImagePath $ScratchDisk\tiny11\sources\install.wim -Compressiontype Maximum -CheckIntegrity
@@ -174,13 +203,31 @@ Copy-Item -Path "$DriveLetter\*" -Destination "$ScratchDisk\tiny11" -Recurse -Fo
 Set-ItemProperty -Path "$ScratchDisk\tiny11\sources\install.esd" -Name IsReadOnly -Value $false > $null 2>&1
 Remove-Item "$ScratchDisk\tiny11\sources\install.esd" > $null 2>&1
 Write-Output "Copy complete!"
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    Clear-Host
+}
 Write-Output "Getting image information:"
 $ImagesIndex = (Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim).ImageIndex
-while ($ImagesIndex -notcontains $index) {
-    Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim
-    $index = Read-Host "Please enter the image index"
+
+if ($NonInteractive) {
+    # Auto-detect image index (use first available index, usually 1)
+    $wimInfo = Get-WindowsImage -ImagePath "$ScratchDisk\tiny11\sources\install.wim"
+    if (-not $index -or $ImagesIndex -notcontains $index) {
+        if ($wimInfo) {
+            $index = $wimInfo[0].ImageIndex
+            Write-Output "Auto-detected image index: $index"
+        } else {
+            $index = 1
+            Write-Output "Using default image index: $index"
+        }
+    }
+} else {
+    # In interactive mode, validate index
+    while ($ImagesIndex -notcontains $index) {
+        Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim
+        $index = Read-Host "Please enter the image index"
+    }
 }
 Write-Output "Mounting Windows image. This may take a while."
 $wimFilePath = "$ScratchDisk\tiny11\sources\install.wim"
@@ -656,13 +703,19 @@ if ([System.IO.Directory]::Exists($ADKDepTools)) {
 
 # Finishing up
 Write-Output "Creation completed! Press any key to exit the script..."
-Read-Host "Press Enter to continue"
+if ($NonInteractive) {
+    Write-Output "Build complete! Cleaning up..."
+} else {
+    Read-Host "Press Enter to continue"
+}
 Write-Output "Performing Cleanup..."
 Remove-Item -Path "$ScratchDisk\tiny11" -Recurse -Force | Out-Null
 Remove-Item -Path "$ScratchDisk\scratchdir" -Recurse -Force | Out-Null
-Write-Output "Ejecting Iso drive"
-Get-Volume -DriveLetter $DriveLetter[0] | Get-DiskImage | Dismount-DiskImage
-Write-Output "Iso drive ejected"
+if (-not $NonInteractive) {
+    Write-Output "Ejecting Iso drive"
+    Get-Volume -DriveLetter $DriveLetter[0] | Get-DiskImage | Dismount-DiskImage
+    Write-Output "Iso drive ejected"
+}
 Write-Output "Removing oscdimg.exe..."
 Remove-Item -Path "$PSScriptRoot\oscdimg.exe" -Force -ErrorAction SilentlyContinue
 Write-Output "Removing autounattend.xml..."
