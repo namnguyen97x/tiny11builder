@@ -142,6 +142,12 @@ jobs:
           
       - name: Build Tiny11 ISO
         shell: pwsh
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
+          REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || 'no' }}
+          REMOVE_AI: ${{ github.event.inputs.remove_ai || 'yes' }}
+          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'yes' }}
+          REMOVE_STORE: ${{ github.event.inputs.remove_store || 'yes' }}
         run: |
           $ErrorActionPreference = 'Stop'
           
@@ -158,7 +164,7 @@ jobs:
           Write-Host "Building Tiny11 ISO..."
           Write-Host "ISO Drive: $isoDrive"
           Write-Host "Scratch Drive: $scratchDrive"
-          Write-Host "Build Type: ${{ github.event.inputs.build_type || 'maker' }}"
+          Write-Host "Build Type: $env:BUILD_TYPE"
           
           # Build arguments
           $buildArgs = @()
@@ -172,18 +178,18 @@ jobs:
           }
           
           # Determine script to run
-          $buildType = "${{ github.event.inputs.build_type || 'maker' }}"
+          $buildType = $env:BUILD_TYPE
           $scriptName = if ($buildType -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
           
           # Add optional debloat parameters only for maker
           if ($buildType -eq 'maker') {
             Write-Host "Adding optional debloat parameters for maker..."
             
-            # Get input values with defaults
-            $removeDefender = if ('${{ github.event.inputs.remove_defender }}') { '${{ github.event.inputs.remove_defender }}' } else { 'no' }
-            $removeAI = if ('${{ github.event.inputs.remove_ai }}') { '${{ github.event.inputs.remove_ai }}' } else { 'yes' }
-            $removeEdge = if ('${{ github.event.inputs.remove_edge }}') { '${{ github.event.inputs.remove_edge }}' } else { 'yes' }
-            $removeStore = if ('${{ github.event.inputs.remove_store }}') { '${{ github.event.inputs.remove_store }}' } else { 'yes' }
+            # Use environment variables with defaults
+            $removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'no' }
+            $removeAI = if ($env:REMOVE_AI) { $env:REMOVE_AI } else { 'yes' }
+            $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'yes' }
+            $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'yes' }
             
             $buildArgs += '-RemoveDefender', $removeDefender
             $buildArgs += '-RemoveAI', $removeAI
