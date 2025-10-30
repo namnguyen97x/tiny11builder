@@ -30,7 +30,13 @@
 #---------[ Parameters ]---------#
 param (
     [ValidatePattern('^[c-zC-Z]$')][string]$ISO,
-    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH
+    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH,
+    
+    # Optional debloat options (chỉ áp dụng cho maker)
+    [ValidateSet('yes','no')][string]$RemoveDefender = 'no',
+    [ValidateSet('yes','no')][string]$RemoveAI = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveStore = 'yes'
 )
 
 if (-not $SCRATCH) {
@@ -44,11 +50,13 @@ $EnableDebloat = 'yes'
 $RemoveAppx = 'yes'
 $RemoveCapabilities = 'yes'
 $RemoveWindowsPackages = 'yes'
-$RemoveEdge = 'yes'
 $RemoveOneDrive = 'yes'
 $DisableTelemetry = 'yes'
 $DisableSponsoredApps = 'yes'
 $DisableAds = 'yes'
+
+# Optional debloat options (có thể tùy chỉnh)
+# $RemoveDefender, $RemoveAI, $RemoveEdge, $RemoveStore được set từ parameters
 
 # Import debloater module
 if ($EnableDebloat -eq 'yes') {
@@ -221,6 +229,26 @@ Write-Output "Mounting complete! Performing removal of applications..."
 # Sử dụng debloater module nếu được enable
 if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
     Write-Output "Using integrated debloater from Windows-ISO-Debloater..."
+    
+    # Get packages để filter Store và AI
+    $allPackages = Get-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -ErrorAction SilentlyContinue
+    
+    # Filter Store packages if RemoveStore = no
+    if ($RemoveStore -eq 'no') {
+        $storePackages = $allPackages | Where-Object { $_.PackageName -like '*WindowsStore*' -or $_.PackageName -like '*StorePurchaseApp*' -or $_.PackageName -like '*Store.Engagement*' }
+        foreach ($storePkg in $storePackages) {
+            Write-Output "  Keeping Store package: $($storePkg.PackageName)"
+        }
+    }
+    
+    # Filter AI packages if RemoveAI = no
+    if ($RemoveAI -eq 'no') {
+        $aiPackages = $allPackages | Where-Object { $_.PackageName -like '*Copilot*' -or $_.PackageName -like '*549981C3F5F10*' }
+        foreach ($aiPkg in $aiPackages) {
+            Write-Output "  Keeping AI package: $($aiPkg.PackageName)"
+        }
+    }
+    
     Remove-DebloatPackages -MountPath "$ScratchDisk\scratchdir" `
         -RemoveAppx:($RemoveAppx -eq 'yes') `
         -RemoveCapabilities:($RemoveCapabilities -eq 'yes') `
@@ -231,6 +259,26 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         -RemoveEdge:($RemoveEdge -eq 'yes') `
         -RemoveOneDrive:($RemoveOneDrive -eq 'yes') `
         -Architecture $architecture
+    
+    # Remove Store packages manually if RemoveStore = yes
+    if ($RemoveStore -eq 'yes') {
+        Write-Output "Removing Microsoft Store packages..."
+        $storePackages = $allPackages | Where-Object { $_.PackageName -like '*WindowsStore*' -or $_.PackageName -like '*StorePurchaseApp*' -or $_.PackageName -like '*Store.Engagement*' }
+        foreach ($storePkg in $storePackages) {
+            Write-Output "  Removing: $($storePkg.PackageName)"
+            Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $storePkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
+    
+    # Remove AI packages manually if RemoveAI = yes
+    if ($RemoveAI -eq 'yes') {
+        Write-Output "Removing AI/Copilot packages..."
+        $aiPackages = $allPackages | Where-Object { $_.PackageName -like '*Copilot*' -or $_.PackageName -like '*549981C3F5F10*' }
+        foreach ($aiPkg in $aiPackages) {
+            Write-Output "  Removing: $($aiPkg.PackageName)"
+            Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $aiPkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
 } else {
     # Fallback to original method
     Write-Output "Using original package removal method..."
@@ -303,17 +351,48 @@ $packagesToRemove = $packages | Where-Object {
 }
 # Chỉ chạy method cũ nếu debloater không được enable
 if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
-    foreach ($package in $packagesToRemove) {
+    # Filter packages based on options
+    $filteredPackages = $packagesToRemove | Where-Object {
+        $packageName = $_
+        $shouldRemove = $true
+        
+        # Filter AI packages if RemoveAI = no
+        if ($RemoveAI -eq 'no') {
+            if ($packageName -like '*Copilot*' -or $packageName -like '*549981C3F5F10*') {
+                $shouldRemove = $false
+                Write-Output "  Keeping AI package: $packageName"
+            }
+        }
+        
+        # Filter Store packages if RemoveStore = no
+        if ($RemoveStore -eq 'no') {
+            if ($packageName -like '*WindowsStore*' -or $packageName -like '*StorePurchaseApp*' -or $packageName -like '*Store.Engagement*') {
+                $shouldRemove = $false
+                Write-Output "  Keeping Store package: $packageName"
+            }
+        }
+        
+        return $shouldRemove
+    }
+    
+    foreach ($package in $filteredPackages) {
+        Write-Output "Removing $package"
         & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
     }
 
-    Write-Output "Removing Edge:"
-    Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force | Out-Null
-    Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force | Out-Null
-    Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force | Out-Null
-    & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' | Out-Null
-    & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
-    Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force | Out-Null
+    # Remove Edge only if RemoveEdge = yes
+    if ($RemoveEdge -eq 'yes') {
+        Write-Output "Removing Edge:"
+        Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force | Out-Null
+        Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force | Out-Null
+        Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force | Out-Null
+        & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' | Out-Null
+        & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
+        Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force | Out-Null
+    } else {
+        Write-Output "Keeping Edge (RemoveEdge = no)"
+    }
+    
     Write-Output "Removing OneDrive:"
     & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" | Out-Null
     & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
@@ -385,14 +464,61 @@ Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\scra
 
 Write-Output "Disabling Reserved Storage:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager' 'ShippedWithReserves' 'REG_DWORD' '0'
+
+# Remove Defender if requested
+if ($RemoveDefender -eq 'yes') {
+    Write-Output "Removing Windows Defender..."
+    try {
+        $defenderPackages = & dism /English /image:"$ScratchDisk\scratchdir" /Get-Packages | 
+            Select-String -Pattern "Windows-Defender-Client-Package"
+        
+        foreach ($package in $defenderPackages) {
+            if ($package -match 'Package Identity :\s+(.+)') {
+                $packageIdentity = $Matches[1].Trim()
+                Write-Output "  Removing Defender package: $packageIdentity"
+                & dism /English /image:"$ScratchDisk\scratchdir" /Remove-Package /PackageName:$packageIdentity | Out-Null
+            }
+        }
+        
+        # Disable Defender services
+        $servicePaths = @("WinDefend", "WdNisSvc", "WdNisDrv", "WdFilter", "Sense")
+        foreach ($service in $servicePaths) {
+            Set-RegistryValue "HKLM\zSYSTEM\ControlSet001\Services\$service" "Start" "REG_DWORD" "4"
+        }
+        
+        # Hide Defender from Settings
+        Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'SettingsPageVisibility' 'REG_SZ' 'hide:virus;windowsupdate'
+        Write-Output "Windows Defender removed successfully"
+    } catch {
+        Write-Warning "Failed to remove Defender: $_"
+    }
+}
+
 Write-Output "Disabling BitLocker Device Encryption"
 Set-RegistryValue 'HKLM\zSYSTEM\ControlSet001\Control\BitLocker' 'PreventDeviceEncryption' 'REG_DWORD' '1'
 Write-Output "Disabling Chat icon:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Chat' 'ChatIcon' 'REG_DWORD' '3'
 Set-RegistryValue 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarMn' 'REG_DWORD' '0'
 Write-Output "Removing Edge related registries"
-Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge"
-Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update"
+if ($RemoveEdge -eq 'yes') {
+    Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge"
+    Remove-RegistryValue "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update"
+}
+
+# Disable Copilot/AI if RemoveAI = no (keep it enabled)
+if ($RemoveAI -eq 'yes') {
+    Write-Output "Disabling Copilot/AI..."
+    Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' 'REG_DWORD' '1'
+    Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Edge' 'HubsSidebarEnabled' 'REG_DWORD' '0'
+    Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' 'REG_DWORD' '1'
+}
+
+# Disable Store if RemoveStore = yes
+if ($RemoveStore -eq 'yes') {
+    Write-Output "Disabling Microsoft Store..."
+    Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\WindowsStore' 'RemoveWindowsStore' 'REG_DWORD' '1'
+    Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned' 'Microsoft.WindowsStore_8wekyb3d8bbwe' 'REG_SZ' ''
+}
 Write-Output "Disabling OneDrive folder backup"
 Set-RegistryValue "HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive" "DisableFileSyncNGSC" "REG_DWORD" "1"
 Write-Output "Disabling Telemetry:"

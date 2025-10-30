@@ -16,6 +16,38 @@ on:
         required: false
         default: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso'
         type: string
+      remove_defender:
+        description: '⚠️ MAKER ONLY: Remove Windows Defender (default: no)'
+        required: false
+        default: 'no'
+        type: choice
+        options:
+          - yes
+          - no
+      remove_ai:
+        description: '⚠️ MAKER ONLY: Remove AI/Copilot components (default: yes)'
+        required: false
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+      remove_edge:
+        description: '⚠️ MAKER ONLY: Remove Microsoft Edge (default: yes)'
+        required: false
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+      remove_store:
+        description: '⚠️ MAKER ONLY: Remove Microsoft Store (default: yes)'
+        required: false
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
   push:
     branches:
       - main
@@ -143,10 +175,30 @@ jobs:
           $buildType = "${{ github.event.inputs.build_type || 'maker' }}"
           $scriptName = if ($buildType -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
           
+          # Add optional debloat parameters only for maker
+          if ($buildType -eq 'maker') {
+            Write-Host "Adding optional debloat parameters for maker..."
+            
+            # Get input values with defaults
+            $removeDefender = if ('${{ github.event.inputs.remove_defender }}') { '${{ github.event.inputs.remove_defender }}' } else { 'no' }
+            $removeAI = if ('${{ github.event.inputs.remove_ai }}') { '${{ github.event.inputs.remove_ai }}' } else { 'yes' }
+            $removeEdge = if ('${{ github.event.inputs.remove_edge }}') { '${{ github.event.inputs.remove_edge }}' } else { 'yes' }
+            $removeStore = if ('${{ github.event.inputs.remove_store }}') { '${{ github.event.inputs.remove_store }}' } else { 'yes' }
+            
+            $buildArgs += '-RemoveDefender', $removeDefender
+            $buildArgs += '-RemoveAI', $removeAI
+            $buildArgs += '-RemoveEdge', $removeEdge
+            $buildArgs += '-RemoveStore', $removeStore
+            
+            Write-Host "Debloat options: Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
+          } else {
+            Write-Host "Core maker selected - optional debloat parameters ignored (core has fixed settings)"
+          }
+          
           Write-Host "Running: $scriptName"
           Write-Host "Arguments: $($buildArgs -join ' ')"
           
-          # Run the builder script (debloat settings are automatic)
+          # Run the builder script
           & ".\$scriptName" @buildArgs
           
           # Check if ISO was created
