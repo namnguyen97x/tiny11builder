@@ -166,12 +166,12 @@ jobs:
           Write-Host "Scratch Drive: $scratchDrive"
           Write-Host "Build Type: $env:BUILD_TYPE"
           
-          # Build arguments
-          $buildArgs = @()
+          # Build arguments - use hashtable for named parameters
+          $buildParams = @{}
           
           # Extract drive letter (remove colon)
           if ($isoDrive -match '^([A-Z]):$') {
-            $buildArgs += '-ISO', $Matches[1]
+            $buildParams['ISO'] = $Matches[1]
           } else {
             Write-Error "Invalid ISO drive format: $isoDrive"
             exit 1
@@ -182,7 +182,7 @@ jobs:
           $scriptName = if ($buildType -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
           
           # Add NonInteractive flag for CI/CD
-          $buildArgs += '-NonInteractive'
+          $buildParams['NonInteractive'] = $true
           
           # Add optional debloat parameters only for maker
           if ($buildType -eq 'maker') {
@@ -194,10 +194,10 @@ jobs:
             $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'yes' }
             $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'yes' }
             
-            $buildArgs += '-RemoveDefender', $removeDefender
-            $buildArgs += '-RemoveAI', $removeAI
-            $buildArgs += '-RemoveEdge', $removeEdge
-            $buildArgs += '-RemoveStore', $removeStore
+            $buildParams['RemoveDefender'] = $removeDefender
+            $buildParams['RemoveAI'] = $removeAI
+            $buildParams['RemoveEdge'] = $removeEdge
+            $buildParams['RemoveStore'] = $removeStore
             
             Write-Host "Debloat options: Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
           } else {
@@ -205,10 +205,13 @@ jobs:
           }
           
           Write-Host "Running: $scriptName"
-          Write-Host "Arguments: $($buildArgs -join ' ')"
+          Write-Host "Parameters: ISO=$($buildParams['ISO']), NonInteractive=$($buildParams['NonInteractive'])"
+          if ($buildType -eq 'maker') {
+            Write-Host "  Debloat: Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
+          }
           
-          # Run the builder script
-          & ".\$scriptName" @buildArgs
+          # Run the builder script with splatting
+          & ".\$scriptName" @buildParams
           
           # Check if ISO was created
           $isoPath = Join-Path $PSScriptRoot "tiny11.iso"
