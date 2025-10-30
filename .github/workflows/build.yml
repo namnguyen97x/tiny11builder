@@ -15,6 +15,16 @@ on:
         description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
         required: false
         type: string
+      version_selector:
+        description: 'Windows edition to build (default: Auto - selects Pro)'
+        required: false
+        default: 'Auto'
+        type: choice
+        options:
+          - Auto
+          - Pro
+          - Home
+          - ProWorkstations
       remove_defender:
         description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender (default: no)'
         required: false
@@ -144,6 +154,7 @@ jobs:
         shell: pwsh
         env:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
+          VERSION_SELECTOR: ${{ github.event.inputs.version_selector || 'Auto' }}
           REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || 'no' }}
           REMOVE_AI: ${{ github.event.inputs.remove_ai || 'yes' }}
           REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'yes' }}
@@ -184,6 +195,11 @@ jobs:
           # Add NonInteractive flag for CI/CD
           $buildParams['NonInteractive'] = $true
           
+          # Add version selector
+          $versionSelector = if ($env:VERSION_SELECTOR) { $env:VERSION_SELECTOR } else { 'Auto' }
+          $buildParams['VersionSelector'] = $versionSelector
+          Write-Host "Version selector: $versionSelector"
+          
           # Add optional debloat parameters only for maker
           if ($buildType -eq 'maker') {
             Write-Host "Adding optional debloat parameters for maker..."
@@ -205,7 +221,7 @@ jobs:
           }
           
           Write-Host "Running: $scriptName"
-          Write-Host "Parameters: ISO=$($buildParams['ISO']), NonInteractive=$($buildParams['NonInteractive'])"
+          Write-Host "Parameters: ISO=$($buildParams['ISO']), NonInteractive=$($buildParams['NonInteractive']), VersionSelector=$($buildParams['VersionSelector'])"
           if ($buildType -eq 'maker') {
             Write-Host "  Debloat: Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
           }

@@ -39,7 +39,10 @@ param (
     [ValidateSet('yes','no')][string]$RemoveStore = 'yes',
     
     # Non-interactive mode for CI/CD
-    [switch]$NonInteractive = $false
+    [switch]$NonInteractive = $false,
+    
+    # Version selector (Auto, Pro, Home, ProWorkstations)
+    [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto'
 )
 
 if (-not $SCRATCH) {
@@ -211,33 +214,65 @@ Write-Output "Getting image information:"
 $ImagesIndex = (Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim).ImageIndex
 
 if ($NonInteractive) {
-    # Auto-detect Pro edition index (prioritize Windows 11 Pro)
-    Write-Output "Auto-detecting Pro edition..."
+    # Auto-detect edition based on VersionSelector
+    Write-Output "Auto-detecting edition based on VersionSelector: $VersionSelector"
     $wimInfo = Get-WindowsImage -ImagePath "$ScratchDisk\tiny11\sources\install.wim"
     
     if (-not $index -or $ImagesIndex -notcontains $index) {
-        $proEditions = @()
+        $targetEditions = @()
         
         foreach ($image in $wimInfo) {
             $imageName = $image.ImageName
-            # Check if it's a Pro edition
-            if ($imageName -like '*Pro*' -and $imageName -notlike '*Home*') {
-                $priority = 0
-                
-                # Set priority: Windows 11 Pro > Pro for Workstations > Pro Education > Pro N
-                if ($imageName -eq 'Windows 11 Pro') {
-                    $priority = 1  # Highest priority
-                } elseif ($imageName -like '*Pro for Workstations*' -and $imageName -notlike '*N*') {
-                    $priority = 2
-                } elseif ($imageName -like '*Pro Education*' -and $imageName -notlike '*N*') {
-                    $priority = 3
-                } elseif ($imageName -like '*Pro*' -and $imageName -notlike '*N*') {
-                    $priority = 4
-                } else {
-                    $priority = 5  # Pro N variants
+            $match = $false
+            $priority = 999
+            
+            switch ($VersionSelector) {
+                'Auto' {
+                    # Auto mode: prefer Pro editions
+                    if ($imageName -like '*Pro*' -and $imageName -notlike '*Home*') {
+                        $match = $true
+                        if ($imageName -eq 'Windows 11 Pro') {
+                            $priority = 1
+                        } elseif ($imageName -like '*Pro for Workstations*' -and $imageName -notlike '*N*') {
+                            $priority = 2
+                        } elseif ($imageName -like '*Pro Education*' -and $imageName -notlike '*N*') {
+                            $priority = 3
+                        } elseif ($imageName -like '*Pro*' -and $imageName -notlike '*N*') {
+                            $priority = 4
+                        } else {
+                            $priority = 5
+                        }
+                    }
                 }
-                
-                $proEditions += @{
+                'Pro' {
+                    # Pro mode: find exact Windows 11 Pro
+                    if ($imageName -eq 'Windows 11 Pro') {
+                        $match = $true
+                        $priority = 1
+                    }
+                }
+                'Home' {
+                    # Home mode: find Windows 11 Home (non-N)
+                    if ($imageName -like '*Home*' -and $imageName -notlike '*N*' -and $imageName -notlike '*Pro*') {
+                        $match = $true
+                        if ($imageName -eq 'Windows 11 Home') {
+                            $priority = 1
+                        } else {
+                            $priority = 2
+                        }
+                    }
+                }
+                'ProWorkstations' {
+                    # ProWorkstations mode: find Pro for Workstations
+                    if ($imageName -like '*Pro for Workstations*' -and $imageName -notlike '*N*') {
+                        $match = $true
+                        $priority = 1
+                    }
+                }
+            }
+            
+            if ($match) {
+                $targetEditions += @{
                     Index = $image.ImageIndex
                     Name = $imageName
                     Priority = $priority
@@ -245,20 +280,15 @@ if ($NonInteractive) {
             }
         }
         
-        if ($proEditions.Count -gt 0) {
+        if ($targetEditions.Count -gt 0) {
             # Sort by priority and select the best one
-            $bestPro = $proEditions | Sort-Object Priority | Select-Object -First 1
-            $index = $bestPro.Index
-            Write-Output "Found Pro edition: $($bestPro.Name) (Index: $index)" -ForegroundColor Green
+            $bestEdition = $targetEditions | Sort-Object Priority | Select-Object -First 1
+            $index = $bestEdition.Index
+            Write-Output "Found edition: $($bestEdition.Name) (Index: $index)" -ForegroundColor Green
         } else {
-            # Fallback to first available index
-            if ($wimInfo) {
-                $index = $wimInfo[0].ImageIndex
-                Write-Output "No Pro edition found, using first available index: $index" -ForegroundColor Yellow
-            } else {
-                $index = 1
-                Write-Output "Using default image index: $index" -ForegroundColor Yellow
-            }
+            # Fallback to index 1 if not found
+            $index = 1
+            Write-Output "Requested edition not found, using default index: $index" -ForegroundColor Yellow
         }
     }
 } else {
