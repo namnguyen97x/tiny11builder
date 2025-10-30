@@ -1,0 +1,206 @@
+name: Build Tiny11 ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'maker'
+        type: choice
+        options:
+          - maker
+          - core
+      iso_drive:
+        description: 'ISO drive letter (will be mounted)'
+        required: true
+        default: 'E'
+        type: string
+      scratch_drive:
+        description: 'Scratch drive letter'
+        required: false
+        default: 'D'
+        type: string
+      enable_debloat:
+        description: 'Enable debloat features'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+      remove_appx:
+        description: 'Remove AppX packages'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+      remove_edge:
+        description: 'Remove Edge'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+      remove_onedrive:
+        description: 'Remove OneDrive'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+      disable_telemetry:
+        description: 'Disable Telemetry'
+        required: true
+        default: 'yes'
+        type: choice
+        options:
+          - yes
+          - no
+  push:
+    branches:
+      - main
+    paths:
+      - '*.ps1'
+      - '.github/workflows/*.yml'
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup PowerShell
+        shell: pwsh
+        run: |
+          $PSVersionTable
+          Write-Host "PowerShell version: $($PSVersionTable.PSVersion)"
+          
+      - name: Mount Windows ISO
+        shell: pwsh
+        run: |
+          # Check if ISO_URL is provided as secret
+          if ($env:ISO_URL) {
+            Write-Host "Downloading Windows ISO from provided URL..."
+            $isoPath = "$env:RUNNER_TEMP\windows.iso"
+            Invoke-WebRequest -Uri $env:ISO_URL -OutFile $isoPath -UseBasicParsing
+            
+            Write-Host "Mounting ISO..."
+            $drive = Mount-DiskImage -ImagePath $isoPath -PassThru | Get-Volume
+            $isoDrive = "$($drive.DriveLetter):"
+            Write-Host "ISO mounted at: $isoDrive"
+            echo "ISO_DRIVE=$isoDrive" >> $env:GITHUB_ENV
+          } else {
+            Write-Host "No ISO_URL provided. Please mount ISO manually or provide ISO_URL secret."
+            Write-Host "Using drive letter from input: ${{ github.event.inputs.iso_drive }}"
+            echo "ISO_DRIVE=${{ github.event.inputs.iso_drive }}:" >> $env:GITHUB_ENV
+          }
+          
+      - name: Build Tiny11 ISO
+        shell: pwsh
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
+          ISO_DRIVE_INPUT: ${{ github.event.inputs.iso_drive || 'E' }}
+          SCRATCH_DRIVE_INPUT: ${{ github.event.inputs.scratch_drive || 'D' }}
+          ENABLE_DEBLOAT: ${{ github.event.inputs.enable_debloat || 'yes' }}
+          REMOVE_APPX: ${{ github.event.inputs.remove_appx || 'yes' }}
+          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'yes' }}
+          REMOVE_ONEDRIVE: ${{ github.event.inputs.remove_onedrive || 'yes' }}
+          DISABLE_TELEMETRY: ${{ github.event.inputs.disable_telemetry || 'yes' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Set drive letters
+          $isoDrive = $env:ISO_DRIVE
+          $scratchDrive = if ($env:SCRATCH_DRIVE_INPUT) { "$($env:SCRATCH_DRIVE_INPUT):" } else { $PSScriptRoot }
+          
+          Write-Host "Building Tiny11 ISO..."
+          Write-Host "ISO Drive: $isoDrive"
+          Write-Host "Scratch Drive: $scratchDrive"
+          Write-Host "Build Type: $env:BUILD_TYPE"
+          
+          # Build arguments
+          $buildArgs = @()
+          
+          if ($isoDrive -match '^([A-Z]):$') {
+            $buildArgs += '-ISO', $Matches[1]
+          }
+          
+          if ($scratchDrive -match '^([A-Z]):$') {
+            $buildArgs += '-SCRATCH', $Matches[1]
+          }
+          
+          # Add debloat parameters
+          $buildArgs += '-EnableDebloat', $env:ENABLE_DEBLOAT
+          $buildArgs += '-RemoveAppx', $env:REMOVE_APPX
+          $buildArgs += '-RemoveEdge', $env:REMOVE_EDGE
+          $buildArgs += '-RemoveOneDrive', $env:REMOVE_ONEDRIVE
+          $buildArgs += '-DisableTelemetry', $env:DISABLE_TELEMETRY
+          
+          # Determine script to run
+          $scriptName = if ($env:BUILD_TYPE -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
+          
+          Write-Host "Running: $scriptName"
+          Write-Host "Arguments: $($buildArgs -join ' ')"
+          
+          # Run the builder script
+          & ".\$scriptName" @buildArgs
+          
+          # Check if ISO was created
+          $isoPath = Join-Path $PSScriptRoot "tiny11.iso"
+          if (Test-Path $isoPath) {
+            Write-Host "ISO created successfully: $isoPath"
+            $isoSize = (Get-Item $isoPath).Length / 1GB
+            Write-Host "ISO size: $([math]::Round($isoSize, 2)) GB"
+          } else {
+            Write-Error "ISO was not created at expected path: $isoPath"
+            exit 1
+          }
+          
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: tiny11-iso-${{ github.event.inputs.build_type || 'maker' }}-${{ github.run_number }}
+          path: |
+            tiny11.iso
+            *.log
+          retention-days: 7
+          compression-level: 0
+          
+      - name: Create Release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        shell: pwsh
+        run: |
+          $isoPath = "tiny11.iso"
+          if (Test-Path $isoPath) {
+            Write-Host "Preparing release asset..."
+            $isoSize = (Get-Item $isoPath).Length / 1GB
+            Write-Host "ISO size: $([math]::Round($isoSize, 2)) GB"
+            
+            # Note: Actual release upload would be handled by release action
+            # This step just prepares the file
+          }
+          
+      - name: Cleanup
+        if: always()
+        shell: pwsh
+        run: |
+          # Unmount ISO if we mounted it
+          if ($env:ISO_URL) {
+            Write-Host "Unmounting ISO..."
+            Get-DiskImage | Where-Object { $_.ImagePath -like "*windows.iso" } | Dismount-DiskImage -ErrorAction SilentlyContinue
+          }
+          
+          # Cleanup temporary files
+          Write-Host "Cleaning up temporary files..."
+          Remove-Item -Path "$env:RUNNER_TEMP\windows.iso" -ErrorAction SilentlyContinue

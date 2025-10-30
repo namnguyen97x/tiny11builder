@@ -1,3 +1,17 @@
+#---------[ Parameters ]---------#
+param (
+    # Debloat options (tích hợp Windows-ISO-Debloater)
+    [ValidateSet('yes','no')][string]$EnableDebloat = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveAppx = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveCapabilities = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveWindowsPackages = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveOneDrive = 'yes',
+    [ValidateSet('yes','no')][string]$DisableTelemetry = 'yes',
+    [ValidateSet('yes','no')][string]$DisableSponsoredApps = 'yes',
+    [ValidateSet('yes','no')][string]$DisableAds = 'yes'
+)
+
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
     Write-Host "Your current PowerShell Execution Policy is set to Restricted, which prevents scripts from running. Do you want to change it to RemoteSigned? (yes/no)"
     $response = Read-Host
@@ -6,6 +20,18 @@ if ((Get-ExecutionPolicy) -eq 'Restricted') {
     } else {
         Write-Host "The script cannot be run without changing the execution policy. Exiting..."
         exit
+    }
+}
+
+# Import debloater module nếu enable
+if ($EnableDebloat -eq 'yes') {
+    $modulePath = Join-Path $PSScriptRoot "tiny11-debloater.psm1"
+    if (Test-Path $modulePath) {
+        Import-Module $modulePath -Force -ErrorAction SilentlyContinue
+        Write-Host "Debloater module loaded"
+    } else {
+        Write-Warning "Debloater module not found at $modulePath. Debloat features will be disabled."
+        $EnableDebloat = 'no'
     }
 }
 
@@ -110,60 +136,77 @@ if (-not $architecture) {
 
 Write-Host "Mounting complete! Performing removal of applications..."
 
-$packages = & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Get-ProvisionedAppxPackages' |
-    ForEach-Object {
-        if ($_ -match 'PackageName : (.*)') {
-            $matches[1]
+# Sử dụng debloater module nếu được enable
+if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
+    Write-Host "Using integrated debloater from Windows-ISO-Debloater..."
+    Remove-DebloatPackages -MountPath "$($env:SystemDrive)\scratchdir" `
+        -RemoveAppx:($RemoveAppx -eq 'yes') `
+        -RemoveCapabilities:($RemoveCapabilities -eq 'yes') `
+        -RemoveWindowsPackages:($RemoveWindowsPackages -eq 'yes') `
+        -LanguageCode $languageCode
+    
+    Remove-DebloatFiles -MountPath "$($env:SystemDrive)\scratchdir" `
+        -RemoveEdge:($RemoveEdge -eq 'yes') `
+        -RemoveOneDrive:($RemoveOneDrive -eq 'yes') `
+        -Architecture $architecture
+} else {
+    # Fallback to original method
+    Write-Host "Using original package removal method..."
+    $packages = & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Get-ProvisionedAppxPackages' |
+        ForEach-Object {
+            if ($_ -match 'PackageName : (.*)') {
+                $matches[1]
+            }
+        }
+    $packagePrefixes = 'Clipchamp.Clipchamp_', 'Microsoft.BingNews_', 'Microsoft.BingWeather_', 'Microsoft.GamingApp_', 'Microsoft.GetHelp_', 'Microsoft.Getstarted_', 'Microsoft.MicrosoftOfficeHub_', 'Microsoft.MicrosoftSolitaireCollection_', 'Microsoft.People_', 'Microsoft.PowerAutomateDesktop_', 'Microsoft.Todos_', 'Microsoft.WindowsAlarms_', 'microsoft.windowscommunicationsapps_', 'Microsoft.WindowsFeedbackHub_', 'Microsoft.WindowsMaps_', 'Microsoft.WindowsSoundRecorder_', 'Microsoft.Xbox.TCUI_', 'Microsoft.XboxGamingOverlay_', 'Microsoft.XboxGameOverlay_', 'Microsoft.XboxSpeechToTextOverlay_', 'Microsoft.YourPhone_', 'Microsoft.ZuneMusic_', 'Microsoft.ZuneVideo_', 'MicrosoftCorporationII.MicrosoftFamily_', 'MicrosoftCorporationII.QuickAssist_', 'MicrosoftTeams_', 'Microsoft.549981C3F5F10_', 'Microsoft.Windows.Copilot', 'MSTeams_', 'Microsoft.OutlookForWindows_', 'Microsoft.Windows.Teams_', 'Microsoft.Copilot_'
+
+    $packagesToRemove = $packages | Where-Object {
+        $packageName = $_
+        $packagePrefixes -contains ($packagePrefixes | Where-Object { $packageName -like "$_*" })
+    }
+    foreach ($package in $packagesToRemove) {
+        write-host "Removing $package :"
+        & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
+    }
+
+    Write-Host "Removing of system apps complete! Now proceeding to removal of system packages..."
+    
+    $scratchDir = "$($env:SystemDrive)\scratchdir"
+    $packagePatterns = @(
+        "Microsoft-Windows-InternetExplorer-Optional-Package~31bf3856ad364e35",
+        "Microsoft-Windows-Kernel-LA57-FoD-Package~31bf3856ad364e35~amd64",
+        "Microsoft-Windows-LanguageFeatures-Handwriting-$languageCode-Package~31bf3856ad364e35",
+        "Microsoft-Windows-LanguageFeatures-OCR-$languageCode-Package~31bf3856ad364e35",
+        "Microsoft-Windows-LanguageFeatures-Speech-$languageCode-Package~31bf3856ad364e35",
+        "Microsoft-Windows-LanguageFeatures-TextToSpeech-$languageCode-Package~31bf3856ad364e35",
+        "Microsoft-Windows-MediaPlayer-Package~31bf3856ad364e35",
+        "Microsoft-Windows-Wallpaper-Content-Extended-FoD-Package~31bf3856ad364e35",
+        "Windows-Defender-Client-Package~31bf3856ad364e35~",
+        "Microsoft-Windows-WordPad-FoD-Package~",
+        "Microsoft-Windows-TabletPCMath-Package~",
+        "Microsoft-Windows-StepsRecorder-Package~"
+    )
+
+    # Get all packages
+    $allPackages = & dism /image:$scratchDir /Get-Packages /Format:Table
+    $allPackages = $allPackages -split "`n" | Select-Object -Skip 1
+
+    foreach ($packagePattern in $packagePatterns) {
+        # Filter the packages to remove
+        $packagesToRemove = $allPackages | Where-Object { $_ -like "$packagePattern*" }
+
+        foreach ($package in $packagesToRemove) {
+            # Extract the package identity
+            $packageIdentity = ($package -split "\s+")[0]
+
+            Write-Host "Removing $packageIdentity..."
+            & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 
         }
     }
-$packagePrefixes = 'Clipchamp.Clipchamp_', 'Microsoft.BingNews_', 'Microsoft.BingWeather_', 'Microsoft.GamingApp_', 'Microsoft.GetHelp_', 'Microsoft.Getstarted_', 'Microsoft.MicrosoftOfficeHub_', 'Microsoft.MicrosoftSolitaireCollection_', 'Microsoft.People_', 'Microsoft.PowerAutomateDesktop_', 'Microsoft.Todos_', 'Microsoft.WindowsAlarms_', 'microsoft.windowscommunicationsapps_', 'Microsoft.WindowsFeedbackHub_', 'Microsoft.WindowsMaps_', 'Microsoft.WindowsSoundRecorder_', 'Microsoft.Xbox.TCUI_', 'Microsoft.XboxGamingOverlay_', 'Microsoft.XboxGameOverlay_', 'Microsoft.XboxSpeechToTextOverlay_', 'Microsoft.YourPhone_', 'Microsoft.ZuneMusic_', 'Microsoft.ZuneVideo_', 'MicrosoftCorporationII.MicrosoftFamily_', 'MicrosoftCorporationII.QuickAssist_', 'MicrosoftTeams_', 'Microsoft.549981C3F5F10_', 'Microsoft.Windows.Copilot', 'MSTeams_', 'Microsoft.OutlookForWindows_', 'Microsoft.Windows.Teams_', 'Microsoft.Copilot_'
-
-$packagesToRemove = $packages | Where-Object {
-    $packageName = $_
-    $packagePrefixes -contains ($packagePrefixes | Where-Object { $packageName -like "$_*" })
-}
-foreach ($package in $packagesToRemove) {
-    write-host "Removing $package :"
-    & 'dism' '/English' "/image:$($env:SystemDrive)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
 }
 
-Write-Host "Removing of system apps complete! Now proceeding to removal of system packages..."
 Start-Sleep -Seconds 1
 Clear-Host
-
-$scratchDir = "$($env:SystemDrive)\scratchdir"
-$packagePatterns = @(
-    "Microsoft-Windows-InternetExplorer-Optional-Package~31bf3856ad364e35",
-    "Microsoft-Windows-Kernel-LA57-FoD-Package~31bf3856ad364e35~amd64",
-    "Microsoft-Windows-LanguageFeatures-Handwriting-$languageCode-Package~31bf3856ad364e35",
-    "Microsoft-Windows-LanguageFeatures-OCR-$languageCode-Package~31bf3856ad364e35",
-    "Microsoft-Windows-LanguageFeatures-Speech-$languageCode-Package~31bf3856ad364e35",
-    "Microsoft-Windows-LanguageFeatures-TextToSpeech-$languageCode-Package~31bf3856ad364e35",
-    "Microsoft-Windows-MediaPlayer-Package~31bf3856ad364e35",
-    "Microsoft-Windows-Wallpaper-Content-Extended-FoD-Package~31bf3856ad364e35",
-    "Windows-Defender-Client-Package~31bf3856ad364e35~",
-    "Microsoft-Windows-WordPad-FoD-Package~",
-    "Microsoft-Windows-TabletPCMath-Package~",
-    "Microsoft-Windows-StepsRecorder-Package~"
-
-)
-
-# Get all packages
-$allPackages = & dism /image:$scratchDir /Get-Packages /Format:Table
-$allPackages = $allPackages -split "`n" | Select-Object -Skip 1
-
-foreach ($packagePattern in $packagePatterns) {
-    # Filter the packages to remove
-    $packagesToRemove = $allPackages | Where-Object { $_ -like "$packagePattern*" }
-
-    foreach ($package in $packagesToRemove) {
-        # Extract the package identity
-        $packageIdentity = ($package -split "\s+")[0]
-
-        Write-Host "Removing $packageIdentity..."
-        & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 
-    }
-}
 
 Write-Host "Do you want to enable .NET 3.5? This cannot be done after the image has been created! (y/n)"
 $input = Read-Host
@@ -179,45 +222,51 @@ elseif ($input -eq 'n') {
 else {
     Write-Host "Invalid input. Please enter 'y' to enable .NET 3.5 or 'n' to continue without installing .net 3.5."
 }
-Write-Host "Removing Edge:"
-Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force >null
-Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force >null
-Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force >null
-if ($architecture -eq 'amd64') {
-    $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName
+# Chỉ chạy method cũ nếu debloater không được enable
+if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
+    Write-Host "Removing Edge:"
+    Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force >null
+    Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force >null
+    Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force >null
+    if ($architecture -eq 'amd64') {
+        $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName
 
-    if ($folderPath) {
-        & 'takeown' '/f' $folderPath '/r' >null
-        & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
-        Remove-Item -Path $folderPath -Recurse -Force >null
-    } else {
-        Write-Host "Folder not found."
-    }
-} elseif ($architecture -eq 'arm64') {
-    $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "arm64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName >null
+        if ($folderPath) {
+            & 'takeown' '/f' $folderPath '/r' >null
+            & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
+            Remove-Item -Path $folderPath -Recurse -Force >null
+        } else {
+            Write-Host "Folder not found."
+        }
+    } elseif ($architecture -eq 'arm64') {
+        $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "arm64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName >null
 
-    if ($folderPath) {
-        & 'takeown' '/f' $folderPath '/r'>null
-        & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
-        Remove-Item -Path $folderPath -Recurse -Force >null
+        if ($folderPath) {
+            & 'takeown' '/f' $folderPath '/r'>null
+            & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
+            Remove-Item -Path $folderPath -Recurse -Force >null
+        } else {
+            Write-Host "Folder not found."
+        }
     } else {
-        Write-Host "Folder not found."
+        Write-Host "Unknown architecture: $architecture"
     }
-} else {
-    Write-Host "Unknown architecture: $architecture"
+    & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r'
+    & 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C'
+    Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force
+    
+    Write-Host "Removing WinRE"
+    & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Recovery" '/r'
+    & 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Recovery" '/grant' 'Administrators:F' '/T' '/C'
+    Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Recovery\winre.wim" -Recurse -Force
+    New-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Recovery\winre.wim" -ItemType File -Force
+    
+    Write-Host "Removing OneDrive:"
+    & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\OneDriveSetup.exe" >null
+    & 'icacls' "$mainOSDrive\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' >null
+    Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\OneDriveSetup.exe" -Force >null
 }
-& 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r'
-& 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C'
-Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force
-Write-Host "Removing WinRE"
-& 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Recovery" '/r'
-& 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Recovery" '/grant' 'Administrators:F' '/T' '/C'
-Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Recovery\winre.wim" -Recurse -Force
-New-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Recovery\winre.wim" -ItemType File -Force
-Write-Host "Removing OneDrive:"
-& 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\OneDriveSetup.exe" >null
-& 'icacls' "$mainOSDrive\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' >null
-Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\OneDriveSetup.exe" -Force >null
+
 Write-Host "Removal complete!"
 Start-Sleep -Seconds 2
 Clear-Host
@@ -378,6 +427,21 @@ Write-Host "Disabling Sponsored Apps:"
 & 'reg' 'delete' 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps' '/f' | Out-Null
 & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' '/v' 'DisableConsumerAccountStateContent' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
 & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' '/v' 'DisableCloudOptimizedContent' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
+
+# Apply debloater registry tweaks nếu được enable
+if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
+    Write-Host "Applying debloater registry tweaks..."
+    Apply-DebloatRegistryTweaks -RegistryPrefix "HKLM\z" `
+        -DisableTelemetry:($DisableTelemetry -eq 'yes') `
+        -DisableSponsoredApps:($DisableSponsoredApps -eq 'yes') `
+        -DisableAds:($DisableAds -eq 'yes') `
+        -DisableBitlocker:$true `
+        -DisableOneDrive:($RemoveOneDrive -eq 'yes') `
+        -DisableGameDVR:$true `
+        -TweakOOBE:$true `
+        -DisableUselessJunks:$true
+}
+
 Write-Host "Enabling Local Accounts on OOBE:"
 & 'reg' 'add' 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' '/v' 'BypassNRO' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
 Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\scratchdir\Windows\System32\Sysprep\autounattend.xml" -Force | Out-Null

@@ -30,13 +30,36 @@
 #---------[ Parameters ]---------#
 param (
     [ValidatePattern('^[c-zC-Z]$')][string]$ISO,
-    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH
+    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH,
+    
+    # Debloat options (tích hợp Windows-ISO-Debloater)
+    [ValidateSet('yes','no')][string]$EnableDebloat = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveAppx = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveCapabilities = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveWindowsPackages = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveOneDrive = 'yes',
+    [ValidateSet('yes','no')][string]$DisableTelemetry = 'yes',
+    [ValidateSet('yes','no')][string]$DisableSponsoredApps = 'yes',
+    [ValidateSet('yes','no')][string]$DisableAds = 'yes'
 )
 
 if (-not $SCRATCH) {
     $ScratchDisk = $PSScriptRoot -replace '[\\]+$', ''
 } else {
     $ScratchDisk = $SCRATCH + ":"
+}
+
+# Import debloater module nếu enable
+if ($EnableDebloat -eq 'yes') {
+    $modulePath = Join-Path $PSScriptRoot "tiny11-debloater.psm1"
+    if (Test-Path $modulePath) {
+        Import-Module $modulePath -Force -ErrorAction SilentlyContinue
+        Write-Output "Debloater module loaded"
+    } else {
+        Write-Warning "Debloater module not found at $modulePath. Debloat features will be disabled."
+        $EnableDebloat = 'no'
+    }
 }
 
 #---------[ Functions ]---------#
@@ -195,6 +218,24 @@ if (-not $architecture) {
 
 Write-Output "Mounting complete! Performing removal of applications..."
 
+# Sử dụng debloater module nếu được enable
+if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
+    Write-Output "Using integrated debloater from Windows-ISO-Debloater..."
+    Remove-DebloatPackages -MountPath "$ScratchDisk\scratchdir" `
+        -RemoveAppx:($RemoveAppx -eq 'yes') `
+        -RemoveCapabilities:($RemoveCapabilities -eq 'yes') `
+        -RemoveWindowsPackages:($RemoveWindowsPackages -eq 'yes') `
+        -LanguageCode $languageCode
+    
+    Remove-DebloatFiles -MountPath "$ScratchDisk\scratchdir" `
+        -RemoveEdge:($RemoveEdge -eq 'yes') `
+        -RemoveOneDrive:($RemoveOneDrive -eq 'yes') `
+        -Architecture $architecture
+} else {
+    # Fallback to original method
+    Write-Output "Using original package removal method..."
+}
+
 $packages = & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Get-ProvisionedAppxPackages' |
     ForEach-Object {
         if ($_ -match 'PackageName : (.*)') {
@@ -260,21 +301,25 @@ $packagesToRemove = $packages | Where-Object {
     $packageName = $_
     $packagePrefixes -contains ($packagePrefixes | Where-Object { $packageName -like "*$_*" })
 }
-foreach ($package in $packagesToRemove) {
-    & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
+# Chỉ chạy method cũ nếu debloater không được enable
+if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
+    foreach ($package in $packagesToRemove) {
+        & 'dism' '/English' "/image:$($ScratchDisk)\scratchdir" '/Remove-ProvisionedAppxPackage' "/PackageName:$package"
+    }
+
+    Write-Output "Removing Edge:"
+    Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force | Out-Null
+    Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force | Out-Null
+    Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force | Out-Null
+    & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' | Out-Null
+    & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
+    Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force | Out-Null
+    Write-Output "Removing OneDrive:"
+    & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" | Out-Null
+    & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
+    Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" -Force | Out-Null
 }
 
-Write-Output "Removing Edge:"
-Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force | Out-Null
-Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force | Out-Null
-Remove-Item -Path "$ScratchDisk\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force | Out-Null
-& 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r' | Out-Null
-& 'icacls' "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
-Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force | Out-Null
-Write-Output "Removing OneDrive:"
-& 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" | Out-Null
-& 'icacls' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
-Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" -Force | Out-Null
 Write-Output "Removal complete!"
 Start-Sleep -Seconds 2
 Clear-Host
@@ -319,6 +364,21 @@ Remove-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\Con
 Remove-RegistryValue 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SuggestedApps'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableConsumerAccountStateContent' 'REG_DWORD' '1'
 Set-RegistryValue 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\CloudContent' 'DisableCloudOptimizedContent' 'REG_DWORD' '1'
+
+# Apply debloater registry tweaks nếu được enable
+if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
+    Write-Output "Applying debloater registry tweaks..."
+    Apply-DebloatRegistryTweaks -RegistryPrefix "HKLM\z" `
+        -DisableTelemetry:($DisableTelemetry -eq 'yes') `
+        -DisableSponsoredApps:($DisableSponsoredApps -eq 'yes') `
+        -DisableAds:($DisableAds -eq 'yes') `
+        -DisableBitlocker:$true `
+        -DisableOneDrive:($RemoveOneDrive -eq 'yes') `
+        -DisableGameDVR:$true `
+        -TweakOOBE:$true `
+        -DisableUselessJunks:$true
+}
+
 Write-Output "Enabling Local Accounts on OOBE:"
 Set-RegistryValue 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' 'BypassNRO' 'REG_DWORD' '1'
 Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\scratchdir\Windows\System32\Sysprep\autounattend.xml" -Force | Out-Null
