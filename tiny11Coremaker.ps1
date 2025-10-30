@@ -427,7 +427,13 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
 }
 
 Start-Sleep -Seconds 1
-Clear-Host
+if (-not $NonInteractive) {
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 
 Write-Host "Do you want to enable .NET 3.5? This cannot be done after the image has been created! (y/n)"
 if ($NonInteractive) {
@@ -494,14 +500,26 @@ if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
 }
 
 Write-Host "Removal complete!"
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Host "Taking ownership of the WinSxS folder. This might take a while..."
 & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\WinSxS" '/r'
 & 'icacls' "$mainOSDrive\scratchdir\Windows\WinSxS" '/grant' "$($adminGroup.Value):(F)" '/T' '/C'
 Write-host "Complete!"
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Host "Preparing..."
 $folderPath = Join-Path -Path $mainOSDrive -ChildPath "\scratchdir\Windows\WinSxS_edit"
 $sourceDirectory = "$mainOSDrive\scratchdir\Windows\WinSxS"
@@ -776,8 +794,14 @@ Write-Host "Exporting image..."
 Remove-Item -Path "$mainOSDrive\tiny11\sources\install.wim" -Force >null
 Rename-Item -Path "$mainOSDrive\tiny11\sources\install2.wim" -NewName "install.wim" >null
 Write-Host "Windows image completed. Continuing with boot.wim."
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Host "Mounting boot image:"
 $wimFilePath = "$($env:SystemDrive)\tiny11\sources\boot.wim" 
 & takeown "/F" $wimFilePath >null
@@ -811,7 +835,13 @@ reg unload HKLM\zSOFTWARE >null
 reg unload HKLM\zSYSTEM >null
 Write-Host "Unmounting image..."
 & 'dism' '/English' '/unmount-image' "/mountdir:$mainOSDrive\scratchdir" '/commit'
-Clear-Host
+if (-not $NonInteractive) {
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Host "Exporting ESD. This may take a while..."
 & dism /Export-Image /SourceImageFile:"$mainOSDrive\tiny11\sources\install.wim" /SourceIndex:1 /DestinationImageFile:"$mainOSDrive\tiny11\sources\install.esd" /Compress:recovery
 Remove-Item "$mainOSDrive\tiny11\sources\install.wim" > $null 2>&1

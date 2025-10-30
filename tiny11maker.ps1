@@ -145,8 +145,15 @@ if (-not (Test-Path -Path "$PSScriptRoot/autounattend.xml")) {
 # Start the transcript and prepare the window
 Start-Transcript -Path "$PSScriptRoot\tiny11_$(get-date -f yyyyMMdd_HHmms).log"
 
-$Host.UI.RawUI.WindowTitle = "Tiny11 image creator"
-Clear-Host
+# Set window title only in interactive mode
+if (-not $NonInteractive) {
+    try {
+        $Host.UI.RawUI.WindowTitle = "Tiny11 image creator"
+        Clear-Host
+    } catch {
+        # Ignore errors in non-interactive environments
+    }
+}
 Write-Output "Welcome to the tiny11 image creator! Release: 09-07-25"
 
 $hostArchitecture = $Env:PROCESSOR_ARCHITECTURE
@@ -516,8 +523,14 @@ if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
 }
 
 Write-Output "Removal complete!"
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Output "Loading registry..."
 reg load HKLM\zCOMPONENTS $ScratchDisk\scratchdir\Windows\System32\config\COMPONENTS | Out-Null
 reg load HKLM\zDEFAULT $ScratchDisk\scratchdir\Windows\System32\config\default | Out-Null
@@ -699,8 +712,14 @@ Dism.exe /Export-Image /SourceImageFile:"$ScratchDisk\tiny11\sources\install.wim
 Remove-Item -Path "$ScratchDisk\tiny11\sources\install.wim" -Force | Out-Null
 Rename-Item -Path "$ScratchDisk\tiny11\sources\install2.wim" -NewName "install.wim" | Out-Null
 Write-Output "Windows image completed. Continuing with boot.wim."
-Start-Sleep -Seconds 2
-Clear-Host
+if (-not $NonInteractive) {
+    Start-Sleep -Seconds 2
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Output "Mounting boot image:"
 $wimFilePath = "$ScratchDisk\tiny11\sources\boot.wim"
 & takeown "/F" $wimFilePath | Out-Null
@@ -736,7 +755,13 @@ reg unload HKLM\zSYSTEM | Out-Null
 
 Write-Output "Unmounting image..."
 Dismount-WindowsImage -Path $ScratchDisk\scratchdir -Save
-Clear-Host
+if (-not $NonInteractive) {
+    try {
+        Clear-Host
+    } catch {
+        # Ignore Clear-Host errors in non-interactive environments
+    }
+}
 Write-Output "The tiny11 image is now completed. Proceeding with the making of the ISO..."
 Write-Output "Copying unattended file for bypassing MS account on OOBE..."
 Copy-Item -Path "$PSScriptRoot\autounattend.xml" -Destination "$ScratchDisk\tiny11\autounattend.xml" -Force | Out-Null
