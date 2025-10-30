@@ -19,46 +19,6 @@ on:
         description: 'Local ISO file path (for self-hosted runners, optional)'
         required: false
         type: string
-      enable_debloat:
-        description: 'Enable debloat features'
-        required: true
-        default: 'yes'
-        type: choice
-        options:
-          - yes
-          - no
-      remove_appx:
-        description: 'Remove AppX packages'
-        required: true
-        default: 'yes'
-        type: choice
-        options:
-          - yes
-          - no
-      remove_edge:
-        description: 'Remove Edge'
-        required: true
-        default: 'yes'
-        type: choice
-        options:
-          - yes
-          - no
-      remove_onedrive:
-        description: 'Remove OneDrive'
-        required: true
-        default: 'yes'
-        type: choice
-        options:
-          - yes
-          - no
-      disable_telemetry:
-        description: 'Disable Telemetry'
-        required: true
-        default: 'yes'
-        type: choice
-        options:
-          - yes
-          - no
   push:
     branches:
       - main
@@ -144,13 +104,6 @@ jobs:
           
       - name: Build Tiny11 ISO
         shell: pwsh
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
-          ENABLE_DEBLOAT: ${{ github.event.inputs.enable_debloat || 'yes' }}
-          REMOVE_APPX: ${{ github.event.inputs.remove_appx || 'yes' }}
-          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'yes' }}
-          REMOVE_ONEDRIVE: ${{ github.event.inputs.remove_onedrive || 'yes' }}
-          DISABLE_TELEMETRY: ${{ github.event.inputs.disable_telemetry || 'yes' }}
         run: |
           $ErrorActionPreference = 'Stop'
           
@@ -167,7 +120,7 @@ jobs:
           Write-Host "Building Tiny11 ISO..."
           Write-Host "ISO Drive: $isoDrive"
           Write-Host "Scratch Drive: $scratchDrive"
-          Write-Host "Build Type: $env:BUILD_TYPE"
+          Write-Host "Build Type: ${{ github.event.inputs.build_type || 'maker' }}"
           
           # Build arguments
           $buildArgs = @()
@@ -180,20 +133,14 @@ jobs:
             exit 1
           }
           
-          # Add debloat parameters
-          $buildArgs += '-EnableDebloat', $env:ENABLE_DEBLOAT
-          $buildArgs += '-RemoveAppx', $env:REMOVE_APPX
-          $buildArgs += '-RemoveEdge', $env:REMOVE_EDGE
-          $buildArgs += '-RemoveOneDrive', $env:REMOVE_ONEDRIVE
-          $buildArgs += '-DisableTelemetry', $env:DISABLE_TELEMETRY
-          
           # Determine script to run
-          $scriptName = if ($env:BUILD_TYPE -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
+          $buildType = "${{ github.event.inputs.build_type || 'maker' }}"
+          $scriptName = if ($buildType -eq 'core') { 'tiny11Coremaker.ps1' } else { 'tiny11maker.ps1' }
           
           Write-Host "Running: $scriptName"
           Write-Host "Arguments: $($buildArgs -join ' ')"
           
-          # Run the builder script
+          # Run the builder script (debloat settings are automatic)
           & ".\$scriptName" @buildArgs
           
           # Check if ISO was created

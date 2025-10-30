@@ -30,18 +30,7 @@
 #---------[ Parameters ]---------#
 param (
     [ValidatePattern('^[c-zC-Z]$')][string]$ISO,
-    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH,
-    
-    # Debloat options (tích hợp Windows-ISO-Debloater)
-    [ValidateSet('yes','no')][string]$EnableDebloat = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveAppx = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveCapabilities = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveWindowsPackages = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveOneDrive = 'yes',
-    [ValidateSet('yes','no')][string]$DisableTelemetry = 'yes',
-    [ValidateSet('yes','no')][string]$DisableSponsoredApps = 'yes',
-    [ValidateSet('yes','no')][string]$DisableAds = 'yes'
+    [ValidatePattern('^[c-zC-Z]$')][string]$SCRATCH
 )
 
 if (-not $SCRATCH) {
@@ -50,7 +39,18 @@ if (-not $SCRATCH) {
     $ScratchDisk = $SCRATCH + ":"
 }
 
-# Import debloater module nếu enable
+# Debloat settings - tự động enable theo chính sách của maker
+$EnableDebloat = 'yes'
+$RemoveAppx = 'yes'
+$RemoveCapabilities = 'yes'
+$RemoveWindowsPackages = 'yes'
+$RemoveEdge = 'yes'
+$RemoveOneDrive = 'yes'
+$DisableTelemetry = 'yes'
+$DisableSponsoredApps = 'yes'
+$DisableAds = 'yes'
+
+# Import debloater module
 if ($EnableDebloat -eq 'yes') {
     $modulePath = Join-Path $PSScriptRoot "tiny11-debloater.psm1"
     if (Test-Path $modulePath) {
