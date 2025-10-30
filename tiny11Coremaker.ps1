@@ -101,15 +101,65 @@ if ((Test-Path "$DriveLetter\sources\boot.wim") -eq $false -or (Test-Path "$Driv
         &  'dism' '/English' "/Get-WimInfo" "/wimfile:$DriveLetter\sources\install.esd"
         
         if ($NonInteractive) {
-            # Auto-detect image index (use first available index, usually 1)
+            # Auto-detect Pro edition index (prioritize Windows 11 Pro)
+            Write-Host "Auto-detecting Pro edition..."
             $wimInfo = & 'dism' '/English' "/Get-WimInfo" "/wimfile:$DriveLetter\sources\install.esd"
-            $index = 1
-            # Try to find the first index in the output
-            $indexLines = $wimInfo | Select-String -Pattern 'Index : (\d+)'
-            if ($indexLines) {
-                $index = [int]($indexLines[0].Matches[0].Groups[1].Value)
+            
+            # Parse WIM info to find Pro editions
+            $index = $null
+            $proEditions = @()
+            $currentIndex = $null
+            $currentName = $null
+            
+            foreach ($line in $wimInfo) {
+                if ($line -match 'Index : (\d+)') {
+                    $currentIndex = [int]$Matches[1]
+                } elseif ($line -match 'Name : (.+)') {
+                    $currentName = $Matches[1].Trim()
+                    if ($currentIndex -and $currentName) {
+                        # Check if it's a Pro edition
+                        if ($currentName -like '*Pro*' -and $currentName -notlike '*Home*') {
+                            $proEditions += @{
+                                Index = $currentIndex
+                                Name = $currentName
+                                Priority = 0
+                            }
+                            
+                            # Set priority: Windows 11 Pro > Pro for Workstations > Pro Education > Pro N
+                            if ($currentName -eq 'Windows 11 Pro') {
+                                $proEditions[-1].Priority = 1  # Highest priority
+                            } elseif ($currentName -like '*Pro for Workstations*' -and $currentName -notlike '*N*') {
+                                $proEditions[-1].Priority = 2
+                            } elseif ($currentName -like '*Pro Education*' -and $currentName -notlike '*N*') {
+                                $proEditions[-1].Priority = 3
+                            } elseif ($currentName -like '*Pro*' -and $currentName -notlike '*N*') {
+                                $proEditions[-1].Priority = 4
+                            } else {
+                                $proEditions[-1].Priority = 5  # Pro N variants
+                            }
+                        }
+                        $currentIndex = $null
+                        $currentName = $null
+                    }
+                }
             }
-            Write-Host "Auto-detected image index: $index"
+            
+            if ($proEditions.Count -gt 0) {
+                # Sort by priority and select the best one
+                $bestPro = $proEditions | Sort-Object Priority | Select-Object -First 1
+                $index = $bestPro.Index
+                Write-Host "Found Pro edition: $($bestPro.Name) (Index: $index)" -ForegroundColor Green
+            } else {
+                # Fallback to first available index
+                $indexLines = $wimInfo | Select-String -Pattern 'Index : (\d+)'
+                if ($indexLines) {
+                    $index = [int]($indexLines[0].Matches[0].Groups[1].Value)
+                    Write-Host "No Pro edition found, using first available index: $index" -ForegroundColor Yellow
+                } else {
+                    $index = 1
+                    Write-Host "Could not auto-detect index, using default: 1" -ForegroundColor Yellow
+                }
+            }
         } else {
             $index = Read-Host "Please enter the image index"
         }
@@ -143,16 +193,64 @@ Write-Host "Getting image information:"
 &  'dism' '/English' "/Get-WimInfo" "/wimfile:$mainOSDrive\tiny11\sources\install.wim"
 
 if ($NonInteractive) {
-    # Auto-detect image index (use first available index, usually 1)
+    # Auto-detect Pro edition index (prioritize Windows 11 Pro)
+    Write-Host "Auto-detecting Pro edition..."
     $wimInfo = & 'dism' '/English' "/Get-WimInfo" "/wimfile:$mainOSDrive\tiny11\sources\install.wim"
-    $index = 1
-    # Try to find the first index in the output
-    $indexLines = $wimInfo | Select-String -Pattern 'Index : (\d+)'
-    if ($indexLines) {
-        $index = [int]($indexLines[0].Matches[0].Groups[1].Value)
-        Write-Host "Auto-detected image index: $index"
+    
+    # Parse WIM info to find Pro editions
+    $index = $null
+    $proEditions = @()
+    $currentIndex = $null
+    $currentName = $null
+    
+    foreach ($line in $wimInfo) {
+        if ($line -match 'Index : (\d+)') {
+            $currentIndex = [int]$Matches[1]
+        } elseif ($line -match 'Name : (.+)') {
+            $currentName = $Matches[1].Trim()
+            if ($currentIndex -and $currentName) {
+                # Check if it's a Pro edition
+                if ($currentName -like '*Pro*' -and $currentName -notlike '*Home*') {
+                    $proEditions += @{
+                        Index = $currentIndex
+                        Name = $currentName
+                        Priority = 0
+                    }
+                    
+                    # Set priority: Windows 11 Pro > Pro for Workstations > Pro Education > Pro N
+                    if ($currentName -eq 'Windows 11 Pro') {
+                        $proEditions[-1].Priority = 1  # Highest priority
+                    } elseif ($currentName -like '*Pro for Workstations*' -and $currentName -notlike '*N*') {
+                        $proEditions[-1].Priority = 2
+                    } elseif ($currentName -like '*Pro Education*' -and $currentName -notlike '*N*') {
+                        $proEditions[-1].Priority = 3
+                    } elseif ($currentName -like '*Pro*' -and $currentName -notlike '*N*') {
+                        $proEditions[-1].Priority = 4
+                    } else {
+                        $proEditions[-1].Priority = 5  # Pro N variants
+                    }
+                }
+                $currentIndex = $null
+                $currentName = $null
+            }
+        }
+    }
+    
+    if ($proEditions.Count -gt 0) {
+        # Sort by priority and select the best one
+        $bestPro = $proEditions | Sort-Object Priority | Select-Object -First 1
+        $index = $bestPro.Index
+        Write-Host "Found Pro edition: $($bestPro.Name) (Index: $index)" -ForegroundColor Green
     } else {
-        Write-Host "Could not auto-detect index, using default: 1"
+        # Fallback to first available index
+        $indexLines = $wimInfo | Select-String -Pattern 'Index : (\d+)'
+        if ($indexLines) {
+            $index = [int]($indexLines[0].Matches[0].Groups[1].Value)
+            Write-Host "No Pro edition found, using first available index: $index" -ForegroundColor Yellow
+        } else {
+            $index = 1
+            Write-Host "Could not auto-detect index, using default: 1" -ForegroundColor Yellow
+        }
     }
 } else {
     $index = Read-Host "Please enter the image index"

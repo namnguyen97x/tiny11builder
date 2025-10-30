@@ -211,15 +211,54 @@ Write-Output "Getting image information:"
 $ImagesIndex = (Get-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim).ImageIndex
 
 if ($NonInteractive) {
-    # Auto-detect image index (use first available index, usually 1)
+    # Auto-detect Pro edition index (prioritize Windows 11 Pro)
+    Write-Output "Auto-detecting Pro edition..."
     $wimInfo = Get-WindowsImage -ImagePath "$ScratchDisk\tiny11\sources\install.wim"
+    
     if (-not $index -or $ImagesIndex -notcontains $index) {
-        if ($wimInfo) {
-            $index = $wimInfo[0].ImageIndex
-            Write-Output "Auto-detected image index: $index"
+        $proEditions = @()
+        
+        foreach ($image in $wimInfo) {
+            $imageName = $image.ImageName
+            # Check if it's a Pro edition
+            if ($imageName -like '*Pro*' -and $imageName -notlike '*Home*') {
+                $priority = 0
+                
+                # Set priority: Windows 11 Pro > Pro for Workstations > Pro Education > Pro N
+                if ($imageName -eq 'Windows 11 Pro') {
+                    $priority = 1  # Highest priority
+                } elseif ($imageName -like '*Pro for Workstations*' -and $imageName -notlike '*N*') {
+                    $priority = 2
+                } elseif ($imageName -like '*Pro Education*' -and $imageName -notlike '*N*') {
+                    $priority = 3
+                } elseif ($imageName -like '*Pro*' -and $imageName -notlike '*N*') {
+                    $priority = 4
+                } else {
+                    $priority = 5  # Pro N variants
+                }
+                
+                $proEditions += @{
+                    Index = $image.ImageIndex
+                    Name = $imageName
+                    Priority = $priority
+                }
+            }
+        }
+        
+        if ($proEditions.Count -gt 0) {
+            # Sort by priority and select the best one
+            $bestPro = $proEditions | Sort-Object Priority | Select-Object -First 1
+            $index = $bestPro.Index
+            Write-Output "Found Pro edition: $($bestPro.Name) (Index: $index)" -ForegroundColor Green
         } else {
-            $index = 1
-            Write-Output "Using default image index: $index"
+            # Fallback to first available index
+            if ($wimInfo) {
+                $index = $wimInfo[0].ImageIndex
+                Write-Output "No Pro edition found, using first available index: $index" -ForegroundColor Yellow
+            } else {
+                $index = 1
+                Write-Output "Using default image index: $index" -ForegroundColor Yellow
+            }
         }
     }
 } else {
