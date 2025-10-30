@@ -12,9 +12,8 @@ on:
           - maker
           - core
       iso_url:
-        description: 'Windows ISO URL (optional, defaults to Windows 11 25H2 if not provided)'
+        description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
         required: false
-        default: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso'
         type: string
       remove_defender:
         description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender (default: no)'
@@ -82,17 +81,18 @@ jobs:
           $ErrorActionPreference = 'Stop'
           
           # Determine ISO source
-          # Priority: Input ISO_URL > Secret ISO_URL > Default URL
+          # Priority: Input ISO_URL (if not empty) > Secret ISO_URL > Default URL
           $isoUrl = $null
           
-          if ($env:ISO_URL_INPUT) {
+          # Check if ISO_URL_INPUT is provided and not empty
+          if ($env:ISO_URL_INPUT -and $env:ISO_URL_INPUT.Trim() -ne '') {
             Write-Host "Using ISO URL from workflow input..."
-            $isoUrl = $env:ISO_URL_INPUT
-          } elseif ($env:ISO_URL_SECRET) {
+            $isoUrl = $env:ISO_URL_INPUT.Trim()
+          } elseif ($env:ISO_URL_SECRET -and $env:ISO_URL_SECRET.Trim() -ne '') {
             Write-Host "Using ISO URL from repository secret..."
-            $isoUrl = $env:ISO_URL_SECRET
+            $isoUrl = $env:ISO_URL_SECRET.Trim()
           } else {
-            Write-Host "Using default Windows 11 ISO URL..."
+            Write-Host "ISO URL input is empty, using default Windows 11 25H2 ISO URL..."
             $isoUrl = $env:DEFAULT_ISO_URL
           }
           
