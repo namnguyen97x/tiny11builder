@@ -318,7 +318,10 @@ foreach ($packagePattern in $packagePatterns) {
         $packageIdentity = ($package -split "\s+")[0]
 
         Write-Host "Removing $packageIdentity..."
-        & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 
+        $result = & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($result | Select-String -Pattern "Removal failed|Error|failed" -Quiet)) {
+            Write-Host "  Warning: Failed to remove $packageIdentity (continuing...)" -ForegroundColor Yellow
+        }
     }
 }
 Write-Host "Removing pre-compiled .NET assemblies (Native Images)..."

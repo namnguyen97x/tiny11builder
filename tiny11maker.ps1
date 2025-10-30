@@ -616,7 +616,10 @@ if ($RemoveDefender -eq 'yes') {
             if ($package -match 'Package Identity :\s+(.+)') {
                 $packageIdentity = $Matches[1].Trim()
                 Write-Output "  Removing Defender package: $packageIdentity"
-                & dism /English /image:"$ScratchDisk\scratchdir" /Remove-Package /PackageName:$packageIdentity | Out-Null
+                $result = & dism /English /image:"$ScratchDisk\scratchdir" /Remove-Package /PackageName:$packageIdentity 2>&1
+                if ($LASTEXITCODE -ne 0 -or ($result | Select-String -Pattern "Removal failed|Error|failed" -Quiet)) {
+                    Write-Output "  Warning: Failed to remove Defender package $packageIdentity (continuing...)" -ForegroundColor Yellow
+                }
             }
         }
         

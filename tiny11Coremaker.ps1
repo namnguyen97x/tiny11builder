@@ -416,13 +416,16 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         # Filter the packages to remove
         $packagesToRemove = $allPackages | Where-Object { $_ -like "$packagePattern*" }
 
-        foreach ($package in $packagesToRemove) {
-            # Extract the package identity
-            $packageIdentity = ($package -split "\s+")[0]
+    foreach ($package in $packagesToRemove) {
+        # Extract the package identity
+        $packageIdentity = ($package -split "\s+")[0]
 
-            Write-Host "Removing $packageIdentity..."
-            & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 
+        Write-Host "Removing $packageIdentity..."
+        $result = & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($result | Select-String -Pattern "Removal failed|Error|failed" -Quiet)) {
+            Write-Host "  Warning: Failed to remove $packageIdentity (continuing...)" -ForegroundColor Yellow
         }
+    }
     }
 }
 
