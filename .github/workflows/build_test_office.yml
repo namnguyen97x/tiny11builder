@@ -23,27 +23,33 @@ on:
         options: [mock, download]
 
 jobs:
-  build:
+  build_base:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      build_type: ${{ inputs.build_type }}
+      version_selector: ${{ inputs.version_selector }}
+
+  office_stage:
     runs-on: windows-latest
-    timeout-minutes: 180
+    needs: build_base
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Tiny11 ISO (reuses build workflow steps)
-        uses: ./.github/workflows/build.yml
+      - name: Download ISO artifact(s)
+        uses: actions/download-artifact@v4
         with:
-          build_type: ${{ inputs.build_type }}
-          version_selector: ${{ inputs.version_selector }}
+          path: ${{ runner.temp }}\iso_artifacts
 
-      - name: Locate built ISO
+      - name: Find ISO file
         shell: pwsh
         run: |
-          $candidates = @('tiny11.iso','tiny11-core.iso','nano11.iso') | ForEach-Object { Join-Path $env:GITHUB_WORKSPACE $_ }
-          $iso = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iso) { Write-Error 'No ISO found from previous step.'; exit 1 }
-          Write-Host "ISO found: $iso"
-          echo "BUILT_ISO=$iso" >> $env:GITHUB_ENV
+          $root = Join-Path $env:RUNNER_TEMP 'iso_artifacts'
+          $iso = Get-ChildItem -Path $root -Recurse -Filter *.iso | Select-Object -First 1
+          if (-not $iso) { Write-Error 'No ISO file found in downloaded artifacts.'; exit 1 }
+          Write-Host "ISO found: $($iso.FullName)"
+          echo "BUILT_ISO=$($iso.FullName)" >> $env:GITHUB_ENV
 
       - name: Extract ISO to working folder
         shell: pwsh
@@ -51,7 +57,6 @@ jobs:
           $iso = $env:BUILT_ISO
           $work = Join-Path $env:RUNNER_TEMP 'iso_work'
           New-Item -ItemType Directory -Force -Path $work | Out-Null
-          # Mount and copy
           $img = Mount-DiskImage -ImagePath $iso -PassThru
           try {
             $vol = $img | Get-Volume
@@ -77,7 +82,6 @@ jobs:
           $oscdimg = (Get-Command oscdimg.exe -ErrorAction SilentlyContinue).Path
           if ($oscdimg) {
             Write-Host "Found oscdimg at: $oscdimg"
-            # Attempt BIOS+UEFI bootable ISO. Boot catalog paths are ISO dependent; this is best-effort.
             $efi = Join-Path $dir 'efi\microsoft\boot\efisys.bin'
             $boot = Join-Path $dir 'boot\etfsboot.com'
             $args = @('-m','-u2','-udfver102')

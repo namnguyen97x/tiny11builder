@@ -1,6 +1,42 @@
 name: Build Tiny11 ISO
 
 on:
+  workflow_call:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: false
+        default: 'maker'
+        type: string
+      iso_url:
+        description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
+        required: false
+        type: string
+      version_selector:
+        description: 'Windows edition to build (default: Auto - selects Pro)'
+        required: false
+        default: 'Auto'
+        type: string
+      remove_defender:
+        description: 'MAKER ONLY: Remove Windows Defender (default: false)'
+        required: false
+        default: 'false'
+        type: string
+      remove_ai:
+        description: 'MAKER ONLY: Remove AI/Copilot components (default: true)'
+        required: false
+        default: 'true'
+        type: string
+      remove_edge:
+        description: 'MAKER ONLY: Remove Microsoft Edge browser (default: true)'
+        required: false
+        default: 'true'
+        type: string
+      remove_store:
+        description: 'MAKER ONLY: Remove Microsoft Store (default: true)'
+        required: false
+        default: 'true'
+        type: string
   workflow_dispatch:
     inputs:
       build_type:
@@ -86,7 +122,7 @@ jobs:
         shell: pwsh
         env:
           ISO_URL_SECRET: ${{ secrets.ISO_URL }}
-          ISO_URL_INPUT: ${{ github.event.inputs.iso_url }}
+          ISO_URL_INPUT: ${{ github.event.inputs.iso_url || inputs.iso_url }}
           DEFAULT_ISO_URL: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso'
         run: |
           $ErrorActionPreference = 'Stop'
@@ -154,12 +190,12 @@ jobs:
       - name: Build Tiny11 ISO
         shell: pwsh
         env:
-          BUILD_TYPE: ${{ github.event.inputs.build_type || 'maker' }}
-          VERSION_SELECTOR: ${{ github.event.inputs.version_selector || 'Auto' }}
-          REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || 'false' }}
-          REMOVE_AI: ${{ github.event.inputs.remove_ai || 'true' }}
-          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'true' }}
-          REMOVE_STORE: ${{ github.event.inputs.remove_store || 'true' }}
+          BUILD_TYPE: ${{ github.event.inputs.build_type || inputs.build_type || 'maker' }}
+          VERSION_SELECTOR: ${{ github.event.inputs.version_selector || inputs.version_selector || 'Auto' }}
+          REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || inputs.remove_defender || 'false' }}
+          REMOVE_AI: ${{ github.event.inputs.remove_ai || inputs.remove_ai || 'true' }}
+          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || inputs.remove_edge || 'true' }}
+          REMOVE_STORE: ${{ github.event.inputs.remove_store || inputs.remove_store || 'true' }}
         run: |
           # Set error handling - continue on non-critical errors
           $ErrorActionPreference = 'Continue'
@@ -286,7 +322,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: ${{ github.event.inputs.build_type || 'maker' }}-iso-${{ github.run_number }}
+          name: ${{ github.event.inputs.build_type || inputs.build_type || 'maker' }}-iso-${{ github.run_number }}
           path: |
             tiny11.iso
             tiny11-core.iso
