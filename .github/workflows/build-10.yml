@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Win10 build type'
+        description: 'Windows 10 build type'
         required: true
         default: 'win10'
         type: choice
@@ -27,7 +27,7 @@ on:
           - Home
           - ProWorkstations
       remove_defender:
-        description: 'Giữ Defender? chọn false để debloat Defender (mặc định: false)'
+        description: 'Remove Windows Defender? (default: false)'
         required: false
         default: 'false'
         type: choice
@@ -35,7 +35,7 @@ on:
           - true
           - false
       remove_edge:
-        description: 'Gỡ Microsoft Edge? (mặc định: true)'
+        description: 'Remove Microsoft Edge? (default: true)'
         required: false
         default: 'true'
         type: choice
@@ -43,7 +43,7 @@ on:
           - true
           - false
       remove_store:
-        description: 'Gỡ Microsoft Store? (mặc định: true)'
+        description: 'Remove Microsoft Store? (default: true)'
         required: false
         default: 'true'
         type: choice
@@ -132,7 +132,11 @@ jobs:
           $buildParams['VersionSelector'] = if ($env:VERSION_SELECTOR) { $env:VERSION_SELECTOR } else { 'Auto' }
 
           $buildType = $env:BUILD_TYPE
-          Write-Host "Debloat options (Win10): Defender=$env:REMOVE_DEFENDER, Edge=$env:REMOVE_EDGE, Store=$env:REMOVE_STORE"
+          if ($buildType -eq 'win10') {
+            Write-Host "Debloat options (Win10 maker): Defender=$env:REMOVE_DEFENDER, Edge=$env:REMOVE_EDGE, Store=$env:REMOVE_STORE"
+          } else {
+            Write-Host "Debloat options are ignored for $buildType (fixed profiles)."
+          }
           $scriptName = switch ($buildType) {
             'win10-core' { 'tiny10Coremaker.ps1' }
             'win10-nano' { 'nano10maker.ps1' }
