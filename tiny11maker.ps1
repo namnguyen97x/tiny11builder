@@ -45,6 +45,10 @@ param (
     [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto'
 )
 
+# Set error handling to continue on non-critical errors
+# Script will only exit on critical failures (ISO creation, mounting, etc.)
+$ErrorActionPreference = 'Continue'
+
 if (-not $SCRATCH) {
     $ScratchDisk = $PSScriptRoot -replace '[\\]+$', ''
 } else {

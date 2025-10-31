@@ -9,6 +9,10 @@ param (
     [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto'
 )
 
+# Set error handling to continue on non-critical errors
+# Script will only exit on critical failures (ISO creation, mounting, etc.)
+$ErrorActionPreference = 'Continue'
+
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
     if ($NonInteractive) {
         Write-Output "Execution policy is Restricted. Attempting to set to RemoteSigned..."
@@ -248,7 +252,15 @@ foreach ($line in $lines) { if ($line -like '*Architecture : *') { $architecture
 if (-not $architecture) { Write-Host "Architecture information not found." }
 Write-Host "Removing provisioned AppX packages (bloatware)..."
 $packagesToRemove = Get-AppxProvisionedPackage -Path $scratchDir | Where-Object { $_.PackageName -like '*Zune*' -or $_.PackageName -like '*Bing*' -or $_.PackageName -like '*Clipchamp*' -or $_.PackageName -like '*Gaming*' -or $_.PackageName -like '*People*' -or $_.PackageName -like '*PowerAutomate*' -or $_.PackageName -like '*Teams*' -or $_.PackageName -like '*Todos*' -or $_.PackageName -like '*YourPhone*' -or $_.PackageName -like '*SoundRecorder*' -or $_.PackageName -like '*Solitaire*' -or $_.PackageName -like '*FeedbackHub*' -or $_.PackageName -like '*Maps*' -or $_.PackageName -like '*OfficeHub*' -or $_.PackageName -like '*Help*' -or $_.PackageName -like '*Family*' -or $_.PackageName -like '*Alarms*' -or $_.PackageName -like '*CommunicationsApps*' -or $_.PackageName -like '*Copilot*' -or $_.PackageName -like '*CompatibilityEnhancements*' -or $_.PackageName -like '*AV1VideoExtension*' -or $_.PackageName -like '*AVCEncoderVideoExtension*' -or $_.PackageName -like '*HEIFImageExtension*' -or $_.PackageName -like '*HEVCVideoExtension*' -or $_.PackageName -like '*MicrosoftStickyNotes*' -or $_.PackageName -like '*OutlookForWindows*' -or $_.PackageName -like '*RawImageExtension*' -or $_.PackageName -like '*SecHealthUI*' -or $_.PackageName -like '*VP9VideoExtensions*' -or $_.PackageName -like '*WebpImageExtension*' -or $_.PackageName -like '*DevHome*' -or $_.PackageName -like '*Photos*' -or $_.PackageName -like '*Camera*' -or $_.PackageName -like '*QuickAssist*' -or $_.PackageName -like '*CoreAI*'  -or $_.PackageName -like '*PeopleExperienceHost*' -or $_.PackageName -like '*PinningConfirmationDialog*' -or $_.PackageName -like '*SecureAssessmentBrowser*' -or $_.PackageName -like '*Paint*' -or $_.PackageName -like '*Notepad*'  }
-foreach ($package in $packagesToRemove) { write-host "Removing: $($package.DisplayName)"; Remove-AppxProvisionedPackage -Path $scratchDir -PackageName $package.PackageName }
+foreach ($package in $packagesToRemove) { 
+    try {
+        Write-Host "Removing: $($package.DisplayName)"
+        Remove-AppxProvisionedPackage -Path $scratchDir -PackageName $package.PackageName -ErrorAction Stop
+        Write-Host "  ✓ Removed successfully" -ForegroundColor Green
+    } catch {
+        Write-Host "  Warning: Failed to remove $($package.DisplayName) - $($_.Exception.Message) (continuing...)" -ForegroundColor Yellow
+    }
+}
 
 Write-Host "Attempting to remove leftover WindowsApps folders..."
 foreach ($package in $packagesToRemove) { $folderPath = Join-Path "$scratchDir\Program Files\WindowsApps" $package.PackageName; if (Test-Path $folderPath) { Write-Host "Deleting folder: $($package.PackageName)"; Remove-Item $folderPath -Recurse -Force -ErrorAction SilentlyContinue } }

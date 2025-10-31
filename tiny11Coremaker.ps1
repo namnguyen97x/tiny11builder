@@ -7,6 +7,10 @@ param (
     [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto'
 )
 
+# Set error handling to continue on non-critical errors
+# Script will only exit on critical failures (ISO creation, mounting, etc.)
+$ErrorActionPreference = 'Continue'
+
 if ((Get-ExecutionPolicy) -eq 'Restricted') {
     if ($NonInteractive) {
         Write-Host "Execution policy is Restricted. Attempting to set to RemoteSigned..."
