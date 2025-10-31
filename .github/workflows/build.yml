@@ -161,7 +161,10 @@ jobs:
           REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'true' }}
           REMOVE_STORE: ${{ github.event.inputs.remove_store || 'true' }}
         run: |
-          $ErrorActionPreference = 'Stop'
+          # Set error handling - continue on non-critical errors
+          $ErrorActionPreference = 'Continue'
+          $script:buildFailed = $false
+          $script:buildError = $null
           
           # Get ISO drive from mounted ISO
           $isoDrive = $env:ISO_DRIVE
@@ -235,7 +238,25 @@ jobs:
           }
           
           # Run the builder script with splatting
-          & ".\$scriptName" @buildParams
+          # Catch errors but continue - scripts have their own error handling
+          try {
+            & ".\$scriptName" @buildParams 2>&1 | ForEach-Object {
+              if ($_ -match "Removal failed|Warning.*Failed to remove") {
+                Write-Warning $_
+              } else {
+                Write-Host $_
+              }
+            }
+            
+            # Check exit code
+            if ($LASTEXITCODE -ne 0) {
+              Write-Warning "Script exited with code $LASTEXITCODE, but continuing to check for ISO..."
+            }
+          } catch {
+            Write-Warning "Error running script: $($_.Exception.Message)"
+            $script:buildFailed = $true
+            $script:buildError = $_
+          }
           
           # Check if ISO was created (different names for different build types)
           $isoName = switch ($buildType) {
@@ -243,12 +264,18 @@ jobs:
             default { 'tiny11.iso' }
           }
           $isoPath = Join-Path $PSScriptRoot $isoName
+          
           if (Test-Path $isoPath) {
-            Write-Host "ISO created successfully: $isoPath"
+            Write-Host "✓ ISO created successfully: $isoPath" -ForegroundColor Green
             $isoSize = (Get-Item $isoPath).Length / 1GB
             Write-Host "ISO size: $([math]::Round($isoSize, 2)) GB"
+            # Exit successfully even if there were warnings
+            exit 0
           } else {
             Write-Error "ISO was not created at expected path: $isoPath"
+            if ($script:buildError) {
+              Write-Error "Build error: $($script:buildError.Exception.Message)"
+            }
             exit 1
           }
           

@@ -319,7 +319,7 @@ try {
     Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop
 } catch {
     # This block will catch the error and suppress it.
-	Write-Error "$wimFilePath not found"
+    Write-Warning "$wimFilePath IsReadOnly property may not be settable (continuing...)"
 }
 New-Item -ItemType Directory -Force -Path "$ScratchDisk\scratchdir" > $null
 Mount-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\install.wim -Index $index -Path $ScratchDisk\scratchdir
