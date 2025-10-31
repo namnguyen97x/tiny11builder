@@ -39,7 +39,13 @@ Write-Info 'Copying ISO contents...'
 robocopy $isoDrive $workRoot /E /NFL /NDL /NJH /NJS /NP | Out-Null
 
 # Best-effort: try to rebuild ISO; fallback to local oscdimg download if needed
-$oscdimg = (Get-Command oscdimg.exe -ErrorAction SilentlyContinue).Path
+$cmd = Get-Command oscdimg.exe -ErrorAction SilentlyContinue
+$oscdimg = $null
+if ($cmd) {
+    if ($cmd -is [array]) { $cmd = $cmd[0] }
+    $oscdimg = ($cmd | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue)
+    if (-not $oscdimg) { $oscdimg = ($cmd | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue) }
+}
 if ($oscdimg) {
     Write-Info "Found oscdimg: $oscdimg"
     $efi  = Join-Path $workRoot 'efi\microsoft\boot\efisys.bin'
