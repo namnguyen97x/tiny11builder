@@ -46,11 +46,36 @@ if ($oscdimg) {
     if (Test-Path $efi)  { $args += @('-bootdata:2#p0,e,b' + $boot + '#pEF,e,b' + $efi) }
     $args += @($workRoot, $outputIso)
     & $oscdimg @args
-    if (-not (Test-Path $outputIso)) { throw 'Failed to create nano10.iso with oscdimg.' }
-    Write-Info 'nano10.iso created.'
+    if (-not (Test-Path $outputIso)) { Write-Info 'System oscdimg failed, trying local download...'; $oscdimg = $null }
 } else {
-    Write-Info 'oscdimg.exe not found. Skipping ISO rebuild.'
+    Write-Info 'oscdimg.exe not found in PATH.'
 }
 
-exit 0
+if (-not $oscdimg) {
+    try {
+        $local = Join-Path $PSScriptRoot 'oscdimg.exe'
+        if (-not (Test-Path $local)) {
+            Write-Info 'Downloading oscdimg.exe...'
+            Invoke-WebRequest -Uri 'https://msdl.microsoft.com/download/symbols/oscdimg.exe/3D44737265000/oscdimg.exe' -OutFile $local -ErrorAction Stop
+        }
+        $efi  = Join-Path $workRoot 'efi\microsoft\boot\efisys.bin'
+        $boot = Join-Path $workRoot 'boot\etfsboot.com'
+        $args = @('-m','-o','-u2','-udfver102')
+        if (Test-Path $boot) { $args += @('-b', $boot) }
+        if (Test-Path $efi)  { $args += @('-bootdata:2#p0,e,b' + $boot + '#pEF,e,b' + $efi) }
+        $args += @($workRoot, $outputIso)
+        & $local @args 2>&1 | Out-Null
+    } catch {
+        Write-Warning "Failed to run local oscdimg: $($_.Exception.Message)"
+    }
+}
+
+if (Test-Path $outputIso) {
+    Write-Info 'nano10.iso created.'
+    $size = (Get-Item $outputIso).Length / 1GB
+    Write-Info ("ISO size: {0} GB" -f [math]::Round($size,2))
+    exit 0
+}
+
+throw 'Failed to create nano10.iso.'
 
