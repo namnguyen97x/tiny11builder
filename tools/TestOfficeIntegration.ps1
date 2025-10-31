@@ -65,12 +65,13 @@ Replace with actual Office Deployment Tool files:
 Set-Content -LiteralPath $setupExePath -Value 'Placeholder for setup.exe (ODT)'
 Set-Content -LiteralPath $configXml -Value @'
 <Configuration>
-  <Add OfficeClientEdition="64" Channel="Current">
-    <Product ID="O365ProPlusRetail">
+  <Add OfficeClientEdition="64" Channel="PerpetualVL2021">
+    <Product ID="ProPlus2021Volume">
       <Language ID="en-us" />
     </Product>
   </Add>
   <Display Level="None" AcceptEULA="TRUE" />
+  <!-- For volume activation, provide KMS/MAK as appropriate in your environment -->
   <Property Name="AUTOACTIVATE" Value="1" />
 </Configuration>
 '@
