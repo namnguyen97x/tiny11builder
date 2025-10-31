@@ -318,9 +318,17 @@ foreach ($packagePattern in $packagePatterns) {
         $packageIdentity = ($package -split "\s+")[0]
 
         Write-Host "Removing $packageIdentity..."
-        $result = & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($result | Select-String -Pattern "Removal failed|Error|failed" -Quiet)) {
-            Write-Host "  Warning: Failed to remove $packageIdentity (continuing...)" -ForegroundColor Yellow
+        try {
+            $result = & dism /image:$scratchDir /Remove-Package /PackageName:$packageIdentity 2>&1
+            $outputString = $result -join "`n"
+            
+            if ($LASTEXITCODE -ne 0 -or ($outputString | Select-String -Pattern "Removal failed|Error|failed|cannot|not found" -Quiet)) {
+                Write-Host "  Warning: Failed to remove $packageIdentity (continuing...)" -ForegroundColor Yellow
+            } else {
+                Write-Host "  ✓ Removed successfully" -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "  Warning: Exception removing $packageIdentity - $($_.Exception.Message) (continuing...)" -ForegroundColor Yellow
         }
     }
 }
