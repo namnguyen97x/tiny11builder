@@ -175,11 +175,11 @@ function Remove-DebloatPackages {
             $matched = $packages | Where-Object { $_.PackageName -like $pattern }
             foreach ($pkg in $matched) {
                 try {
-                    Remove-ProvisionedAppxPackage -Path $MountPath -PackageName $pkg.PackageName -ErrorAction SilentlyContinue | Out-Null
+                    Remove-ProvisionedAppxPackage -Path $MountPath -PackageName $pkg.PackageName -ErrorAction Stop | Out-Null
                     Write-Output "  Removed: $($pkg.PackageName)"
                     $removedCount++
                 } catch {
-                    Write-Warning "  Failed to remove: $($pkg.PackageName)"
+                    Write-Warning "  Failed to remove: $($pkg.PackageName) - $($_.Exception.Message)"
                 }
             }
         }
