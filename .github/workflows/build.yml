@@ -233,9 +233,6 @@ jobs:
           $scriptName = switch ($buildType) {
             'core' { 'tiny11Coremaker.ps1' }
             'nano' { 'nano11maker.ps1' }
-            'win10' { 'tiny10maker.ps1' }
-            'win10-core' { 'tiny10Coremaker.ps1' }
-            'win10-nano' { 'nano10maker.ps1' }
             default { 'tiny11maker.ps1' }
           }
           
@@ -301,9 +298,6 @@ jobs:
           $isoName = switch ($buildType) {
             'nano' { 'nano11.iso' }
             'core' { 'tiny11-core.iso' }
-            'win10' { 'tiny10.iso' }
-            'win10-core' { 'tiny10-core.iso' }
-            'win10-nano' { 'nano10.iso' }
             default { 'tiny11.iso' }
           }
           # Use repository workspace, not $PSScriptRoot (which points to a temp script path in GitHub Actions)
