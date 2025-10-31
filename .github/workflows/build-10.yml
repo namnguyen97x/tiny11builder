@@ -26,6 +26,30 @@ on:
           - Pro
           - Home
           - ProWorkstations
+      remove_defender:
+        description: 'Giữ Defender? chọn false để debloat Defender (mặc định: false)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - true
+          - false
+      remove_edge:
+        description: 'Gỡ Microsoft Edge? (mặc định: true)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - true
+          - false
+      remove_store:
+        description: 'Gỡ Microsoft Store? (mặc định: true)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - true
+          - false
 
 jobs:
   build:
@@ -93,6 +117,9 @@ jobs:
         env:
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'win10' }}
           VERSION_SELECTOR: ${{ github.event.inputs.version_selector || 'Auto' }}
+          REMOVE_DEFENDER: ${{ github.event.inputs.remove_defender || 'false' }}
+          REMOVE_EDGE: ${{ github.event.inputs.remove_edge || 'true' }}
+          REMOVE_STORE: ${{ github.event.inputs.remove_store || 'true' }}
         run: |
           $ErrorActionPreference = 'Continue'
 
@@ -105,6 +132,7 @@ jobs:
           $buildParams['VersionSelector'] = if ($env:VERSION_SELECTOR) { $env:VERSION_SELECTOR } else { 'Auto' }
 
           $buildType = $env:BUILD_TYPE
+          Write-Host "Debloat options (Win10): Defender=$env:REMOVE_DEFENDER, Edge=$env:REMOVE_EDGE, Store=$env:REMOVE_STORE"
           $scriptName = switch ($buildType) {
             'win10-core' { 'tiny10Coremaker.ps1' }
             'win10-nano' { 'nano10maker.ps1' }
