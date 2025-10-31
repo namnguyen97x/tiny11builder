@@ -196,9 +196,13 @@ function Remove-DebloatPackages {
             try {
                 $matched = Get-WindowsCapability -Path $MountPath -ErrorAction SilentlyContinue | Where-Object { $_.Name -like $pattern }
                 foreach ($cap in $matched) {
-                    Remove-WindowsCapability -Path $MountPath -Name $cap.Name -ErrorAction SilentlyContinue | Out-Null
-                    Write-Output "  Removed capability: $($cap.Name)"
-                    $removedCount++
+                    try {
+                        Remove-WindowsCapability -Path $MountPath -Name $cap.Name -ErrorAction Stop | Out-Null
+                        Write-Output "  Removed capability: $($cap.Name)"
+                        $removedCount++
+                    } catch {
+                        Write-Warning "  Failed to remove capability: $($cap.Name) - $($_.Exception.Message)"
+                    }
                 }
             } catch {
                 Write-Warning "  Failed to remove capability: $pattern"
@@ -230,9 +234,13 @@ function Remove-DebloatPackages {
                         }
                     }
                     
-                    Remove-WindowsPackage -Path $MountPath -PackageName $pkg.PackageName -ErrorAction SilentlyContinue | Out-Null
-                    Write-Output "  Removed package: $($pkg.PackageName)"
-                    $removedCount++
+                    try {
+                        Remove-WindowsPackage -Path $MountPath -PackageName $pkg.PackageName -ErrorAction Stop | Out-Null
+                        Write-Output "  Removed package: $($pkg.PackageName)"
+                        $removedCount++
+                    } catch {
+                        Write-Warning "  Failed to remove package: $($pkg.PackageName) - $($_.Exception.Message)"
+                    }
                 }
             } catch {
                 Write-Warning "  Failed to remove package: $pattern"
