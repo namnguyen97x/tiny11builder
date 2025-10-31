@@ -390,31 +390,47 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         -Architecture $architecture
     
     # Remove Store packages manually if RemoveStore = yes
+    # Note: If RemoveAppx = yes, these may already be removed by Remove-DebloatPackages
     if ($RemoveStore -eq 'yes') {
         Write-Output "Removing Microsoft Store packages..."
-        $storePackages = $allPackages | Where-Object { $_.PackageName -like '*WindowsStore*' -or $_.PackageName -like '*StorePurchaseApp*' -or $_.PackageName -like '*Store.Engagement*' }
-        foreach ($storePkg in $storePackages) {
-            Write-Output "  Removing: $($storePkg.PackageName)"
-            try {
-                Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $storePkg.PackageName -ErrorAction Stop | Out-Null
-                Write-Output "    ✓ Removed successfully" -ForegroundColor Green
-            } catch {
-                Write-Output "    ⚠ Warning: Failed to remove $($storePkg.PackageName) - $($_.Exception.Message)" -ForegroundColor Yellow
+        # Get fresh package list after Remove-DebloatPackages may have removed some
+        $currentPackages = Get-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -ErrorAction SilentlyContinue
+        $storePackages = $currentPackages | Where-Object { $_.PackageName -like '*WindowsStore*' -or $_.PackageName -like '*StorePurchaseApp*' -or $_.PackageName -like '*Store.Engagement*' }
+        
+        if ($storePackages.Count -eq 0) {
+            Write-Output "  No Store packages found (may have been removed already by debloater)" -ForegroundColor Gray
+        } else {
+            foreach ($storePkg in $storePackages) {
+                Write-Output "  Removing: $($storePkg.PackageName)"
+                try {
+                    Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $storePkg.PackageName -ErrorAction Stop | Out-Null
+                    Write-Output "    ✓ Removed successfully" -ForegroundColor Green
+                } catch {
+                    Write-Output "    ⚠ Warning: Failed to remove $($storePkg.PackageName) - $($_.Exception.Message)" -ForegroundColor Yellow
+                }
             }
         }
     }
     
     # Remove AI packages manually if RemoveAI = yes
+    # Note: If RemoveAppx = yes, these may already be removed by Remove-DebloatPackages
     if ($RemoveAI -eq 'yes') {
         Write-Output "Removing AI/Copilot packages..."
-        $aiPackages = $allPackages | Where-Object { $_.PackageName -like '*Copilot*' -or $_.PackageName -like '*549981C3F5F10*' }
-        foreach ($aiPkg in $aiPackages) {
-            Write-Output "  Removing: $($aiPkg.PackageName)"
-            try {
-                Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $aiPkg.PackageName -ErrorAction Stop | Out-Null
-                Write-Output "    ✓ Removed successfully" -ForegroundColor Green
-            } catch {
-                Write-Output "    ⚠ Warning: Failed to remove $($aiPkg.PackageName) - $($_.Exception.Message)" -ForegroundColor Yellow
+        # Get fresh package list after Remove-DebloatPackages may have removed some
+        $currentPackages = Get-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -ErrorAction SilentlyContinue
+        $aiPackages = $currentPackages | Where-Object { $_.PackageName -like '*Copilot*' -or $_.PackageName -like '*549981C3F5F10*' }
+        
+        if ($aiPackages.Count -eq 0) {
+            Write-Output "  No AI packages found (may have been removed already by debloater)" -ForegroundColor Gray
+        } else {
+            foreach ($aiPkg in $aiPackages) {
+                Write-Output "  Removing: $($aiPkg.PackageName)"
+                try {
+                    Remove-ProvisionedAppxPackage -Path "$ScratchDisk\scratchdir" -PackageName $aiPkg.PackageName -ErrorAction Stop | Out-Null
+                    Write-Output "    ✓ Removed successfully" -ForegroundColor Green
+                } catch {
+                    Write-Output "    ⚠ Warning: Failed to remove $($aiPkg.PackageName) - $($_.Exception.Message)" -ForegroundColor Yellow
+                }
             }
         }
     }
