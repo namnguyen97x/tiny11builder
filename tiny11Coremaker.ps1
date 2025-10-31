@@ -322,6 +322,7 @@ try {
     Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop
 } catch {
     # This block will catch the error and suppress it.
+    Write-Warning "$wimFilePath IsReadOnly property may not be settable (continuing...)"
 }
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\scratchdir" > $null
 & dism /English "/mount-image" "/imagefile:$mainOSDrive\tiny11\sources\install.wim" "/index:$index" "/mountdir:$mainOSDrive\scratchdir"
@@ -825,7 +826,11 @@ Write-Host "Mounting boot image:"
 $wimFilePath = "$($env:SystemDrive)\tiny11\sources\boot.wim" 
 & takeown "/F" $wimFilePath >null
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
-Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false
+try {
+    Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop
+} catch {
+    Write-Warning "$wimFilePath IsReadOnly property may not be settable (continuing...)"
+}
 & 'dism' '/English' '/mount-image' "/imagefile:$mainOSDrive\tiny11\sources\boot.wim" '/index:2' "/mountdir:$mainOSDrive\scratchdir"
 Write-Host "Loading registry..."
 reg load HKLM\zCOMPONENTS $mainOSDrive\scratchdir\Windows\System32\config\COMPONENTS

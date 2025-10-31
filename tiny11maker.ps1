@@ -770,7 +770,11 @@ Write-Output "Mounting boot image:"
 $wimFilePath = "$ScratchDisk\tiny11\sources\boot.wim"
 & takeown "/F" $wimFilePath | Out-Null
 & icacls $wimFilePath "/grant" "$($adminGroup.Value):(F)"
-Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false
+try {
+    Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop
+} catch {
+    Write-Warning "$wimFilePath IsReadOnly property may not be settable (continuing...)"
+}
 Mount-WindowsImage -ImagePath $ScratchDisk\tiny11\sources\boot.wim -Index 2 -Path $ScratchDisk\scratchdir
 Write-Output "Loading registry..."
 reg load HKLM\zCOMPONENTS $ScratchDisk\scratchdir\Windows\System32\config\COMPONENTS

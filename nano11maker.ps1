@@ -227,6 +227,7 @@ try {
     Set-ItemProperty -Path $wimFilePath -Name IsReadOnly -Value $false -ErrorAction Stop
 } catch {
     # This block will catch the error and suppress it.
+    Write-Warning "$wimFilePath IsReadOnly property may not be settable (continuing...)"
 }
 New-Item -ItemType Directory -Force -Path "$mainOSDrive\scratchdir" | Out-Null
 Mount-WindowsImage -ImagePath "$mainOSDrive\nano11\sources\install.wim" -Index $index -Path "$mainOSDrive\scratchdir"
@@ -707,6 +708,7 @@ Write-Host "Taking ownership of $bootWimPath..."
 try {
     Set-ItemProperty -Path $bootWimPath -Name IsReadOnly -Value $false -ErrorAction Stop
 } catch {
+    Write-Warning "$bootWimPath IsReadOnly property may not be settable (continuing...)"
 }
 Write-Host "Exporting modified setup image (index 2) from boot.wim..."
 $newBootWimPath = "$mainOSDrive\nano11\sources\boot_new.wim"
