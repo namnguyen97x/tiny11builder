@@ -13,6 +13,13 @@ function New-DirectoryIfMissing([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType Directory -Path $path | Out-Null }
 }
 
+# Honor workflow debloat toggles for maker (win10)
+$removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'false' }
+$removeEdge     = if ($env:REMOVE_EDGE)     { $env:REMOVE_EDGE }     else { 'true' }
+$removeStore    = if ($env:REMOVE_STORE)    { $env:REMOVE_STORE }    else { 'true' }
+Write-Info "Debloat (maker): Defender=$removeDefender, Edge=$removeEdge, Store=$removeStore"
+if ($NonInteractive) { Write-Info "NonInteractive mode enabled" }
+
 # Resolve drives
 $isoDrive = "$ISO:"
 if (-not (Test-Path $isoDrive)) { throw "Mounted ISO drive not found: $isoDrive" }

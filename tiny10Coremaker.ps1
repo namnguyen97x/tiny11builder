@@ -13,6 +13,13 @@ function New-DirectoryIfMissing([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { New-Item -ItemType Directory -Path $path | Out-Null }
 }
 
+# Enforce workflow policy: core profile ignores debloat toggles
+$envRemoveDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'false' }
+$envRemoveEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'true' }
+$envRemoveStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
+Write-Info "Policy: win10-core ignores debloat options (Defender=$envRemoveDefender, Edge=$envRemoveEdge, Store=$envRemoveStore)"
+if ($NonInteractive) { Write-Info "NonInteractive mode enabled" }
+
 $isoDrive = "$ISO:"
 if (-not (Test-Path $isoDrive)) { throw "Mounted ISO drive not found: $isoDrive" }
 
