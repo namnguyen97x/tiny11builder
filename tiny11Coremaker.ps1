@@ -895,7 +895,25 @@ if ([System.IO.Directory]::Exists($ADKDepTools)) {
     $OSCDIMG = $localOSCDIMGPath
 }
 
-& "$OSCDIMG" '-m' '-o' '-u2' '-udfver102' "-bootdata:2#p0,e,b$mainOSDrive\tiny11\boot\etfsboot.com#pEF,e,b$mainOSDrive\tiny11\efi\microsoft\boot\efisys.bin" "$mainOSDrive\tiny11" "$PSScriptRoot\tiny11.iso"
+Write-Host "Running oscdimg to create ISO..."
+$isoPath = "$PSScriptRoot\tiny11.iso"
+try {
+    & "$OSCDIMG" '-m' '-o' '-u2' '-udfver102' "-bootdata:2#p0,e,b$mainOSDrive\tiny11\boot\etfsboot.com#pEF,e,b$mainOSDrive\tiny11\efi\microsoft\boot\efisys.bin" "$mainOSDrive\tiny11" $isoPath 2>&1 | Out-Null
+    
+    # Verify ISO was created
+    Start-Sleep -Seconds 2
+    if (-not (Test-Path $isoPath)) {
+        Write-Error "ISO was not created at expected path: $isoPath"
+        exit 1
+    }
+    
+    $isoSize = (Get-Item $isoPath).Length / 1GB
+    Write-Host "✓ ISO created successfully: $isoPath" -ForegroundColor Green
+    Write-Host "  ISO size: $([math]::Round($isoSize, 2)) GB"
+} catch {
+    Write-Error "Failed to create ISO: $($_.Exception.Message)"
+    exit 1
+}
 
 # Finishing up
 Write-Host "Creation completed! Press any key to exit the script..."

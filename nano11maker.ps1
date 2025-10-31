@@ -766,10 +766,38 @@ Get-ChildItem -Path $isoRoot | Where-Object { $_.Name -notin $keepList } | ForEa
 
 Write-Host "Creating bootable ISO image..."
 $OSCDIMG = "$PSScriptRoot\oscdimg.exe"
-if (-not (Test-Path $OSCDIMG)) { $url = "https://msdl.microsoft.com/download/symbols/oscdimg.exe/3D44737265000/oscdimg.exe"; Invoke-WebRequest -Uri $url -OutFile $OSCDIMG }
-& "$OSCDIMG" '-m' '-o' '-u2' '-udfver102' "-bootdata:2#p0,e,b$mainOSDrive\nano11\boot\etfsboot.com#pEF,e,b$mainOSDrive\nano11\efi\microsoft\boot\efisys.bin" "$mainOSDrive\nano11" "$PSScriptRoot\nano11.iso"
+if (-not (Test-Path $OSCDIMG)) { 
+    try {
+        $url = "https://msdl.microsoft.com/download/symbols/oscdimg.exe/3D44737265000/oscdimg.exe"
+        Write-Host "Downloading oscdimg.exe..."
+        Invoke-WebRequest -Uri $url -OutFile $OSCDIMG -ErrorAction Stop
+        Write-Host "✓ oscdimg.exe downloaded successfully" -ForegroundColor Green
+    } catch {
+        Write-Error "Failed to download oscdimg.exe: $($_.Exception.Message)"
+        exit 1
+    }
+}
 
-Write-Output "Creation completed! Your ISO is named nano11.iso"
+$isoPath = "$PSScriptRoot\nano11.iso"
+Write-Host "Running oscdimg to create ISO..."
+try {
+    & "$OSCDIMG" '-m' '-o' '-u2' '-udfver102' "-bootdata:2#p0,e,b$mainOSDrive\nano11\boot\etfsboot.com#pEF,e,b$mainOSDrive\nano11\efi\microsoft\boot\efisys.bin" "$mainOSDrive\nano11" $isoPath 2>&1 | Out-Null
+    
+    # Verify ISO was created
+    Start-Sleep -Seconds 2
+    if (-not (Test-Path $isoPath)) {
+        Write-Error "ISO was not created at expected path: $isoPath"
+        exit 1
+    }
+    
+    $isoSize = (Get-Item $isoPath).Length / 1GB
+    Write-Output "✓ ISO created successfully: $isoPath" -ForegroundColor Green
+    Write-Output "  ISO size: $([math]::Round($isoSize, 2)) GB"
+    Write-Output "Creation completed! Your ISO is named nano11.iso"
+} catch {
+    Write-Error "Failed to create ISO: $($_.Exception.Message)"
+    exit 1
+}
 if ($NonInteractive) {
     Write-Output "Build complete! Cleaning up..."
 } else {
