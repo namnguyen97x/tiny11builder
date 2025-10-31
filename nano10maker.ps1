@@ -20,12 +20,12 @@ $envRemoveStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
 Write-Info "Policy: win10-nano ignores debloat options (Defender=$envRemoveDefender, Edge=$envRemoveEdge, Store=$envRemoveStore)"
 if ($NonInteractive) { Write-Info "NonInteractive mode enabled" }
 
-$isoDrive = "$ISO:"
+$isoDrive = "${ISO}:"
 if (-not (Test-Path $isoDrive)) { throw "Mounted ISO drive not found: $isoDrive" }
 
 $workspace = Split-Path -Parent $PSCommandPath
 $outputIso = Join-Path $workspace 'nano10.iso'
-$workRoot = if ($SCRATCH) { "$SCRATCH:\nano10_work" } else { Join-Path $env:TEMP 'nano10_work' }
+$workRoot = if ($SCRATCH) { "${SCRATCH}:\nano10_work" } else { Join-Path $env:TEMP 'nano10_work' }
 
 Write-Info "ISO drive: $isoDrive"
 Write-Info "Working folder: $workRoot"

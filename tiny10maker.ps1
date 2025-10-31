@@ -21,12 +21,12 @@ Write-Info "Debloat (maker): Defender=$removeDefender, Edge=$removeEdge, Store=$
 if ($NonInteractive) { Write-Info "NonInteractive mode enabled" }
 
 # Resolve drives
-$isoDrive = "$ISO:"
+$isoDrive = "${ISO}:"
 if (-not (Test-Path $isoDrive)) { throw "Mounted ISO drive not found: $isoDrive" }
 
 $workspace = Split-Path -Parent $PSCommandPath
 $outputIso = Join-Path $workspace 'tiny10.iso'
-$workRoot = if ($SCRATCH) { "$SCRATCH:\tiny10_work" } else { Join-Path $env:TEMP 'tiny10_work' }
+$workRoot = if ($SCRATCH) { "${SCRATCH}:\tiny10_work" } else { Join-Path $env:TEMP 'tiny10_work' }
 
 Write-Info "ISO drive: $isoDrive"
 Write-Info "Working folder: $workRoot"

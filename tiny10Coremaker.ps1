@@ -20,12 +20,12 @@ $envRemoveStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
 Write-Info "Policy: win10-core ignores debloat options (Defender=$envRemoveDefender, Edge=$envRemoveEdge, Store=$envRemoveStore)"
 if ($NonInteractive) { Write-Info "NonInteractive mode enabled" }
 
-$isoDrive = "$ISO:"
+$isoDrive = "${ISO}:"
 if (-not (Test-Path $isoDrive)) { throw "Mounted ISO drive not found: $isoDrive" }
 
 $workspace = Split-Path -Parent $PSCommandPath
 $outputIso = Join-Path $workspace 'tiny10-core.iso'
-$workRoot = if ($SCRATCH) { "$SCRATCH:\tiny10_core_work" } else { Join-Path $env:TEMP 'tiny10_core_work' }
+$workRoot = if ($SCRATCH) { "${SCRATCH}:\tiny10_core_work" } else { Join-Path $env:TEMP 'tiny10_core_work' }
 
 Write-Info "ISO drive: $isoDrive"
 Write-Info "Working folder: $workRoot"
