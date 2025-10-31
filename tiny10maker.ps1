@@ -48,14 +48,36 @@ if ($cmd) {
 }
 if ($oscdimg) {
     Write-Info "Found oscdimg: $oscdimg"
-    $efi  = Join-Path $workRoot 'efi\microsoft\boot\efisys.bin'
-    $boot = Join-Path $workRoot 'boot\etfsboot.com'
-    $args = @('-m','-u2','-udfver102')
-    if (Test-Path $boot) { $args += @('-b', $boot) }
-    if (Test-Path $efi)  { $args += @('-bootdata:2#p0,e,b' + $boot + '#pEF,e,b' + $efi) }
-    $args += @($workRoot, $outputIso)
-    & $oscdimg @args
-    if (-not (Test-Path $outputIso)) { Write-Info 'System oscdimg failed, trying local download...'; $oscdimg = $null }
+    $efiBin       = Join-Path $workRoot 'efi\microsoft\boot\efisys.bin'
+    $efiNoPrompt  = Join-Path $workRoot 'efi\microsoft\boot\efisys_noprompt.bin'
+    $etfsBoot     = Join-Path $workRoot 'boot\etfsboot.com'
+
+    function Invoke-Oscdimg([string]$exe) {
+        if (Test-Path $outputIso) { Remove-Item $outputIso -Force -ErrorAction SilentlyContinue }
+        $common = @('-m','-u2','-udfver102')
+        # 1) Try BIOS+UEFI
+        if (Test-Path $etfsBoot -and (Test-Path $efiBin -or Test-Path $efiNoPrompt)) {
+            $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
+            & $exe @($common + @('-b', $etfsBoot, "-bootdata:2#p0,e,b$etfsBoot#pEF,e,b$efiUse", $workRoot, $outputIso)) 2>&1 | Out-Null
+            if (Test-Path $outputIso) { return $true }
+        }
+        # 2) Try BIOS-only
+        if (Test-Path $etfsBoot) {
+            & $exe @($common + @('-b', $etfsBoot, $workRoot, $outputIso)) 2>&1 | Out-Null
+            if (Test-Path $outputIso) { return $true }
+        }
+        # 3) Try UEFI-only
+        if (Test-Path $efiBin -or Test-Path $efiNoPrompt) {
+            $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
+            & $exe @($common + @("-bootdata:1#pEF,e,b$efiUse", $workRoot, $outputIso)) 2>&1 | Out-Null
+            if (Test-Path $outputIso) { return $true }
+        }
+        # 4) Non-bootable ISO fallback
+        & $exe @($common + @($workRoot, $outputIso)) 2>&1 | Out-Null
+        return (Test-Path $outputIso)
+    }
+
+    if (-not (Invoke-Oscdimg -exe $oscdimg)) { Write-Info 'System oscdimg failed, trying local download...'; $oscdimg = $null }
 } else {
     Write-Info 'oscdimg.exe not found in PATH.'
 }
@@ -67,13 +89,30 @@ if (-not $oscdimg) {
             Write-Info 'Downloading oscdimg.exe...'
             Invoke-WebRequest -Uri 'https://msdl.microsoft.com/download/symbols/oscdimg.exe/3D44737265000/oscdimg.exe' -OutFile $local -ErrorAction Stop
         }
-        $efi  = Join-Path $workRoot 'efi\microsoft\boot\efisys.bin'
-        $boot = Join-Path $workRoot 'boot\etfsboot.com'
-        $args = @('-m','-o','-u2','-udfver102')
-        if (Test-Path $boot) { $args += @('-b', $boot) }
-        if (Test-Path $efi)  { $args += @('-bootdata:2#p0,e,b' + $boot + '#pEF,e,b' + $efi) }
-        $args += @($workRoot, $outputIso)
-        & $local @args 2>&1 | Out-Null
+        $efiBin       = Join-Path $workRoot 'efi\microsoft\boot\efisys.bin'
+        $efiNoPrompt  = Join-Path $workRoot 'efi\microsoft\boot\efisys_noprompt.bin'
+        $etfsBoot     = Join-Path $workRoot 'boot\etfsboot.com'
+        function Invoke-LocalOscdimg { param([string]$exe)
+            if (Test-Path $outputIso) { Remove-Item $outputIso -Force -ErrorAction SilentlyContinue }
+            $common = @('-m','-o','-u2','-udfver102')
+            if (Test-Path $etfsBoot -and (Test-Path $efiBin -or Test-Path $efiNoPrompt)) {
+                $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
+                & $exe @($common + @('-b', $etfsBoot, "-bootdata:2#p0,e,b$etfsBoot#pEF,e,b$efiUse", $workRoot, $outputIso)) 2>&1 | Out-Null
+                if (Test-Path $outputIso) { return $true }
+            }
+            if (Test-Path $etfsBoot) {
+                & $exe @($common + @('-b', $etfsBoot, $workRoot, $outputIso)) 2>&1 | Out-Null
+                if (Test-Path $outputIso) { return $true }
+            }
+            if (Test-Path $efiBin -or Test-Path $efiNoPrompt) {
+                $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
+                & $exe @($common + @("-bootdata:1#pEF,e,b$efiUse", $workRoot, $outputIso)) 2>&1 | Out-Null
+                if (Test-Path $outputIso) { return $true }
+            }
+            & $exe @($common + @($workRoot, $outputIso)) 2>&1 | Out-Null
+            return (Test-Path $outputIso)
+        }
+        [void](Invoke-LocalOscdimg -exe $local)
     } catch {
         Write-Warning "Failed to run local oscdimg: $($_.Exception.Message)"
     }
