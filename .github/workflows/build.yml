@@ -263,10 +263,12 @@ jobs:
             'nano' { 'nano11.iso' }
             default { 'tiny11.iso' }
           }
-          $isoPath = Join-Path $PSScriptRoot $isoName
+          # Use repository workspace, not $PSScriptRoot (which points to a temp script path in GitHub Actions)
+          $repoRoot = $env:GITHUB_WORKSPACE
+          $isoPath = Join-Path $repoRoot $isoName
           
           if (Test-Path $isoPath) {
-            Write-Host "✓ ISO created successfully: $isoPath" -ForegroundColor Green
+            Write-Host "\u2713 ISO created successfully: $isoPath" -ForegroundColor Green
             $isoSize = (Get-Item $isoPath).Length / 1GB
             Write-Host "ISO size: $([math]::Round($isoSize, 2)) GB"
             # Exit successfully even if there were warnings
@@ -316,7 +318,7 @@ jobs:
             Write-Host "Unmounting ISO: $env:ISO_FILE_PATH"
             try {
               Get-DiskImage | Where-Object { $_.ImagePath -eq $env:ISO_FILE_PATH } | Dismount-DiskImage -ErrorAction Stop
-              Write-Host "✓ ISO unmounted successfully" -ForegroundColor Green
+              Write-Host "\u2713 ISO unmounted successfully" -ForegroundColor Green
             } catch {
               Write-Warning "Failed to unmount ISO: $_"
             }
