@@ -129,7 +129,13 @@ function Remove-DebloatPackages {
         [switch]$RemoveWindowsPackages = $true,
         
         [Parameter(Mandatory=$false)]
-        [string]$LanguageCode = "en-US"
+        [string]$LanguageCode = "en-US",
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$RemoveStore = $true,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$RemoveAI = $true
     )
     
     Write-Output "Removing debloat packages..."
@@ -140,7 +146,29 @@ function Remove-DebloatPackages {
         $packages = Get-ProvisionedAppxPackage -Path $MountPath -ErrorAction SilentlyContinue
         $removedCount = 0
         
-        foreach ($pattern in $script:appxPatternsToRemove) {
+        # Filter patterns based on RemoveStore and RemoveAI settings
+        $patternsToUse = $script:appxPatternsToRemove | Where-Object {
+            $pattern = $_
+            $shouldInclude = $true
+            
+            # Exclude Store packages if RemoveStore = false
+            if (-not $RemoveStore) {
+                if ($pattern -like "*WindowsStore*" -or $pattern -like "*StorePurchaseApp*" -or $pattern -like "*Store.Engagement*") {
+                    $shouldInclude = $false
+                }
+            }
+            
+            # Exclude AI packages if RemoveAI = false
+            if (-not $RemoveAI) {
+                if ($pattern -like "*Copilot*" -or $pattern -like "*549981C3F5F10*") {
+                    $shouldInclude = $false
+                }
+            }
+            
+            return $shouldInclude
+        }
+        
+        foreach ($pattern in $patternsToUse) {
             $matched = $packages | Where-Object { $_.PackageName -like $pattern }
             foreach ($pkg in $matched) {
                 try {

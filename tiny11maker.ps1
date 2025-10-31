@@ -382,7 +382,9 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         -RemoveAppx:($RemoveAppx -eq 'yes') `
         -RemoveCapabilities:($RemoveCapabilities -eq 'yes') `
         -RemoveWindowsPackages:($RemoveWindowsPackages -eq 'yes') `
-        -LanguageCode $languageCode
+        -LanguageCode $languageCode `
+        -RemoveStore:($RemoveStore -eq 'yes') `
+        -RemoveAI:($RemoveAI -eq 'yes')
     
     Remove-DebloatFiles -MountPath "$ScratchDisk\scratchdir" `
         -RemoveEdge:($RemoveEdge -eq 'yes') `
