@@ -54,22 +54,24 @@ if ($oscdimg) {
         $common = @('-m','-u2','-udfver102')
         if (Test-Path $etfsBoot -and (Test-Path $efiBin -or Test-Path $efiNoPrompt)) {
             $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
-            $args = @($common + @('-b', $etfsBoot, "-bootdata:2#p0,e,b$etfsBoot#pEF,e,b$efiUse", $workRoot, $outputIso))
+            $bootdata = "-bootdata:2#p0,e,b`"$etfsBoot`"#pEF,e,b`"$efiUse`""
+            $args = @($common + @('-b', "`"$etfsBoot`"", $bootdata, "`"$workRoot`"", "`"$outputIso`""))
             Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
             if (Test-Path $outputIso) { return $true }
         }
         if (Test-Path $etfsBoot) {
-            $args = @($common + @('-b', $etfsBoot, $workRoot, $outputIso))
+            $args = @($common + @('-b', "`"$etfsBoot`"", "`"$workRoot`"", "`"$outputIso`""))
             Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
             if (Test-Path $outputIso) { return $true }
         }
         if (Test-Path $efiBin -or Test-Path $efiNoPrompt) {
             $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
-            $args = @($common + @("-bootdata:1#pEF,e,b$efiUse", $workRoot, $outputIso))
+            $bootdata = "-bootdata:1#pEF,e,b`"$efiUse`""
+            $args = @($common + @($bootdata, "`"$workRoot`"", "`"$outputIso`""))
             Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
             if (Test-Path $outputIso) { return $true }
         }
-        $args = @($common + @($workRoot, $outputIso))
+        $args = @($common + @("`"$workRoot`"", "`"$outputIso`""))
         Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
         return (Test-Path $outputIso)
     }
@@ -91,25 +93,27 @@ if (-not $oscdimg) {
         $etfsBoot     = Join-Path $workRoot 'boot\etfsboot.com'
         function Invoke-LocalOscdimg { param([string]$exe)
             if (Test-Path $outputIso) { Remove-Item $outputIso -Force -ErrorAction SilentlyContinue }
-            $common = @('-m','-o','-u2','-udfver102')
+            $common = @('-m','-u2','-udfver102')
             if (Test-Path $etfsBoot -and (Test-Path $efiBin -or Test-Path $efiNoPrompt)) {
                 $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
-                $args = @($common + @('-b', $etfsBoot, "-bootdata:2#p0,e,b$etfsBoot#pEF,e,b$efiUse", $workRoot, $outputIso))
+                $bootdata = "-bootdata:2#p0,e,b`"$etfsBoot`"#pEF,e,b`"$efiUse`""
+                $args = @($common + @('-b', "`"$etfsBoot`"", $bootdata, "`"$workRoot`"", "`"$outputIso`""))
                 Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
                 if (Test-Path $outputIso) { return $true }
             }
             if (Test-Path $etfsBoot) {
-                $args = @($common + @('-b', $etfsBoot, $workRoot, $outputIso))
+                $args = @($common + @('-b', "`"$etfsBoot`"", "`"$workRoot`"", "`"$outputIso`""))
                 Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
                 if (Test-Path $outputIso) { return $true }
             }
             if (Test-Path $efiBin -or Test-Path $efiNoPrompt) {
                 $efiUse = if (Test-Path $efiBin) { $efiBin } else { $efiNoPrompt }
-                $args = @($common + @("-bootdata:1#pEF,e,b$efiUse", $workRoot, $outputIso))
+                $bootdata = "-bootdata:1#pEF,e,b`"$efiUse`""
+                $args = @($common + @($bootdata, "`"$workRoot`"", "`"$outputIso`""))
                 Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
                 if (Test-Path $outputIso) { return $true }
             }
-            $args = @($common + @($workRoot, $outputIso))
+            $args = @($common + @("`"$workRoot`"", "`"$outputIso`""))
             Start-Process -FilePath $exe -ArgumentList ($args -join ' ') -Wait -NoNewWindow | Out-Null
             return (Test-Path $outputIso)
         }
