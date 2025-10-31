@@ -135,7 +135,10 @@ function Remove-DebloatPackages {
         [switch]$RemoveStore = $true,
         
         [Parameter(Mandatory=$false)]
-        [switch]$RemoveAI = $true
+        [switch]$RemoveAI = $true,
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$RemoveDefender = $true
     )
     
     Write-Output "Removing debloat packages..."
@@ -207,13 +210,26 @@ function Remove-DebloatPackages {
     # Remove Windows Packages
     if ($RemoveWindowsPackages) {
         Write-Output "Removing Windows Packages..."
-        $packages = Get-WindowsPackagesToRemove -LanguageCode $LanguageCode
+        $packagePatterns = Get-WindowsPackagesToRemove -LanguageCode $LanguageCode
+        
+        # Filter Defender packages if RemoveDefender = false
+        if (-not $RemoveDefender) {
+            $packagePatterns = $packagePatterns | Where-Object { $_ -notlike "*Defender*" -and $_ -notlike "*Windows-Defender*" }
+        }
+        
         $removedCount = 0
         
-        foreach ($pattern in $packages) {
+        foreach ($pattern in $packagePatterns) {
             try {
                 $matched = Get-WindowsPackage -Path $MountPath -ErrorAction SilentlyContinue | Where-Object { $_.PackageName -like $pattern }
                 foreach ($pkg in $matched) {
+                    # Double check for Defender if RemoveDefender = false
+                    if (-not $RemoveDefender) {
+                        if ($pkg.PackageName -like "*Defender*" -or $pkg.PackageName -like "*Windows-Defender*") {
+                            continue
+                        }
+                    }
+                    
                     Remove-WindowsPackage -Path $MountPath -PackageName $pkg.PackageName -ErrorAction SilentlyContinue | Out-Null
                     Write-Output "  Removed package: $($pkg.PackageName)"
                     $removedCount++
