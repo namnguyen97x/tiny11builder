@@ -261,6 +261,7 @@ jobs:
           # Check if ISO was created (different names for different build types)
           $isoName = switch ($buildType) {
             'nano' { 'nano11.iso' }
+            'core' { 'tiny11-core.iso' }
             default { 'tiny11.iso' }
           }
           # Use repository workspace, not $PSScriptRoot (which points to a temp script path in GitHub Actions)
@@ -288,6 +289,7 @@ jobs:
           name: ${{ github.event.inputs.build_type || 'maker' }}-iso-${{ github.run_number }}
           path: |
             tiny11.iso
+            tiny11-core.iso
             nano11.iso
             *.log
           retention-days: 7

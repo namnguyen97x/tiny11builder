@@ -905,7 +905,7 @@ if ([System.IO.Directory]::Exists($ADKDepTools)) {
 }
 
 Write-Host "Running oscdimg to create ISO..."
-$isoPath = "$PSScriptRoot\tiny11.iso"
+$isoPath = "$PSScriptRoot\tiny11-core.iso"
 try {
     & "$OSCDIMG" '-m' '-o' '-u2' '-udfver102' "-bootdata:2#p0,e,b$mainOSDrive\tiny11\boot\etfsboot.com#pEF,e,b$mainOSDrive\tiny11\efi\microsoft\boot\efisys.bin" "$mainOSDrive\tiny11" $isoPath 2>&1 | Out-Null
     
