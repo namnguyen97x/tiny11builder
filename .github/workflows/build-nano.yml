@@ -117,16 +117,16 @@ jobs:
         shell: pwsh
         env:
           VERSION_SELECTOR:           ${{ github.event.inputs.version_selector || 'Auto' }}
-          REMOVE_DEFENDER:            ${{ github.event.inputs.remove_defender != null && github.event.inputs.remove_defender != false && 'true' || 'true' }}
-          REMOVE_AI:                  ${{ github.event.inputs.remove_ai != null && github.event.inputs.remove_ai != false && 'true' || 'true' }}
-          REMOVE_EDGE:                ${{ github.event.inputs.remove_edge != null && github.event.inputs.remove_edge != false && 'true' || 'true' }}
-          REMOVE_STORE:               ${{ github.event.inputs.remove_store != null && github.event.inputs.remove_store != false && 'true' || 'true' }}
-          REMOVE_PRINTER_DRIVERS:     ${{ github.event.inputs.remove_printer_drivers != null && github.event.inputs.remove_printer_drivers != false && 'true' || 'true' }}
-          REMOVE_SCANNER_DRIVERS:     ${{ github.event.inputs.remove_scanner_drivers != null && github.event.inputs.remove_scanner_drivers != false && 'true' || 'true' }}
-          REMOVE_BLUETOOTH_DRIVERS:   ${{ github.event.inputs.remove_bluetooth_drivers != null && github.event.inputs.remove_bluetooth_drivers != false && 'true' || 'true' }}
-          REMOVE_SMARTCARD_DRIVERS:   ${{ github.event.inputs.remove_smartcard_drivers != null && github.event.inputs.remove_smartcard_drivers != false && 'true' || 'true' }}
-          REMOVE_TAPE_DRIVERS:        ${{ github.event.inputs.remove_tape_drivers != null && github.event.inputs.remove_tape_drivers != false && 'true' || 'true' }}
-          REMOVE_RDP_DRIVERS:         ${{ github.event.inputs.remove_rdp_drivers != null && github.event.inputs.remove_rdp_drivers != false && 'true' || 'true' }}
+          REMOVE_DEFENDER:            ${{ github.event.inputs.remove_defender == false && 'false' || 'true' }}
+          REMOVE_AI:                  ${{ github.event.inputs.remove_ai == false && 'false' || 'true' }}
+          REMOVE_EDGE:                ${{ github.event.inputs.remove_edge == false && 'false' || 'true' }}
+          REMOVE_STORE:               ${{ github.event.inputs.remove_store == false && 'false' || 'true' }}
+          REMOVE_PRINTER_DRIVERS:     ${{ github.event.inputs.remove_printer_drivers == false && 'false' || 'true' }}
+          REMOVE_SCANNER_DRIVERS:     ${{ github.event.inputs.remove_scanner_drivers == false && 'false' || 'true' }}
+          REMOVE_BLUETOOTH_DRIVERS:   ${{ github.event.inputs.remove_bluetooth_drivers == false && 'false' || 'true' }}
+          REMOVE_SMARTCARD_DRIVERS:   ${{ github.event.inputs.remove_smartcard_drivers == false && 'false' || 'true' }}
+          REMOVE_TAPE_DRIVERS:        ${{ github.event.inputs.remove_tape_drivers == false && 'false' || 'true' }}
+          REMOVE_RDP_DRIVERS:         ${{ github.event.inputs.remove_rdp_drivers == false && 'false' || 'true' }}
         run: |
           $ErrorActionPreference = 'Stop'
           # Lấy drive ISO (E:, F:, ...)
