@@ -2,6 +2,11 @@ name: Build Nano11 ISO
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-nano.yml'
     inputs:
       iso_url:
         description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
