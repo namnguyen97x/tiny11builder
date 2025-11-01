@@ -146,10 +146,66 @@ jobs:
           Write-Host "This may take a while depending on your connection speed..."
           
           try {
-            Invoke-WebRequest -Uri $isoUrl -OutFile $isoFilePath -UseBasicParsing
-            Write-Host "✓ ISO downloaded successfully" -ForegroundColor Green
+            # Add User-Agent and headers to bypass Cloudflare protection
+            $headers = @{
+              'User-Agent' = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+              'Accept' = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+              'Accept-Language' = 'en-US,en;q=0.5'
+              'Accept-Encoding' = 'gzip, deflate, br'
+              'Connection' = 'keep-alive'
+              'Upgrade-Insecure-Requests' = '1'
+              'Referer' = 'https://massgrave.dev/'
+            }
+            
+            $maxRetries = 3
+            $retryDelay = 5
+            $downloadSuccess = $false
+            
+            # Retry logic for Cloudflare protection
+            for ($retry = 1; $retry -le $maxRetries; $retry++) {
+              try {
+                Write-Host "Download attempt $retry of $maxRetries..."
+                
+                # Try downloading with headers
+                Invoke-WebRequest -Uri $isoUrl -OutFile $isoFilePath -Headers $headers -UseBasicParsing -TimeoutSec 3600 -MaximumRetryCount 0
+                
+                # Verify file was downloaded (not Cloudflare HTML page)
+                if (Test-Path $isoFilePath) {
+                  $fileSize = (Get-Item $isoFilePath).Length
+                  # Check if file is too small (likely Cloudflare HTML page)
+                  if ($fileSize -lt 1000000) { # Less than 1MB
+                    $content = Get-Content $isoFilePath -Raw -ErrorAction SilentlyContinue
+                    if ($content -match 'Cloudflare|challenge|blocked') {
+                      throw "Downloaded file appears to be Cloudflare challenge page"
+                    }
+                  }
+                  
+                  $downloadSuccess = $true
+                  Write-Host "✓ ISO downloaded successfully" -ForegroundColor Green
+                  break
+                }
+              } catch {
+                if ($retry -lt $maxRetries) {
+                  Write-Warning "Download attempt $retry failed: $($_.Exception.Message)"
+                  Write-Host "Waiting $retryDelay seconds before retry..."
+                  Start-Sleep -Seconds $retryDelay
+                  $retryDelay *= 2 # Exponential backoff
+                  Remove-Item $isoFilePath -ErrorAction SilentlyContinue
+                } else {
+                  throw
+                }
+              }
+            }
+            
+            if (-not $downloadSuccess) {
+              throw "Failed to download ISO after $maxRetries attempts"
+            }
           } catch {
             Write-Error "Failed to download ISO: $_"
+            Write-Warning "If you're getting Cloudflare blocked error, try:"
+            Write-Warning "1. Use a direct download URL without Cloudflare protection"
+            Write-Warning "2. Or download ISO manually and mount it, then use local path"
+            Write-Warning "3. Or use GitHub Actions secret ISO_URL with a direct download link"
             exit 1
           }
           
