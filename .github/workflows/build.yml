@@ -82,36 +82,11 @@ on:
         required: false
         default: true
         type: boolean
-      remove_printer_drivers:
-        description: 'Remove printer drivers (NANO ONLY)'
+      remove_drivers:
+        description: 'Remove non-essential drivers (NANO ONLY). Format: printer,scanner,bluetooth,smartcard,tape,rdp. Default: all (or leave empty for all)'
         required: false
-        default: true
-        type: boolean
-      remove_scanner_drivers:
-        description: 'Remove scanner drivers (NANO ONLY)'
-        required: false
-        default: true
-        type: boolean
-      remove_bluetooth_drivers:
-        description: 'Remove Bluetooth drivers (NANO ONLY)'
-        required: false
-        default: true
-        type: boolean
-      remove_smartcard_drivers:
-        description: 'Remove smartcard drivers (NANO ONLY)'
-        required: false
-        default: true
-        type: boolean
-      remove_tape_drivers:
-        description: 'Remove tape drivers (NANO ONLY)'
-        required: false
-        default: true
-        type: boolean
-      remove_rdp_drivers:
-        description: 'Remove RDP virtual bus drivers (NANO ONLY)'
-        required: false
-        default: true
-        type: boolean
+        default: 'printer,scanner,bluetooth,smartcard,tape,rdp'
+        type: string
   push:
     branches:
       - main
@@ -214,12 +189,7 @@ jobs:
           REMOVE_AI: ${{ github.event.inputs.remove_ai || inputs.remove_ai || 'true' }}
           REMOVE_EDGE: ${{ github.event.inputs.remove_edge || inputs.remove_edge || 'true' }}
           REMOVE_STORE: ${{ github.event.inputs.remove_store || inputs.remove_store || 'true' }}
-          REMOVE_PRINTER_DRIVERS: ${{ github.event.inputs.remove_printer_drivers || inputs.remove_printer_drivers || 'true' }}
-          REMOVE_SCANNER_DRIVERS: ${{ github.event.inputs.remove_scanner_drivers || inputs.remove_scanner_drivers || 'true' }}
-          REMOVE_BLUETOOTH_DRIVERS: ${{ github.event.inputs.remove_bluetooth_drivers || inputs.remove_bluetooth_drivers || 'true' }}
-          REMOVE_SMARTCARD_DRIVERS: ${{ github.event.inputs.remove_smartcard_drivers || inputs.remove_smartcard_drivers || 'true' }}
-          REMOVE_TAPE_DRIVERS: ${{ github.event.inputs.remove_tape_drivers || inputs.remove_tape_drivers || 'true' }}
-          REMOVE_RDP_DRIVERS: ${{ github.event.inputs.remove_rdp_drivers || inputs.remove_rdp_drivers || 'true' }}
+          REMOVE_DRIVERS: ${{ github.event.inputs.remove_drivers || inputs.remove_drivers || 'printer,scanner,bluetooth,smartcard,tape,rdp' }}
         run: |
           # Set error handling - continue on non-critical errors
           $ErrorActionPreference = 'Continue'
@@ -288,14 +258,27 @@ jobs:
           
           # Add driver removal parameters (NANO ONLY)
           if ($buildType -eq 'nano') {
-            $buildParams['RemovePrinterDrivers'] = Convert-ToYesNo $env:REMOVE_PRINTER_DRIVERS 'yes'
-            $buildParams['RemoveScannerDrivers'] = Convert-ToYesNo $env:REMOVE_SCANNER_DRIVERS 'yes'
-            $buildParams['RemoveBluetoothDrivers'] = Convert-ToYesNo $env:REMOVE_BLUETOOTH_DRIVERS 'yes'
-            $buildParams['RemoveSmartcardDrivers'] = Convert-ToYesNo $env:REMOVE_SMARTCARD_DRIVERS 'yes'
-            $buildParams['RemoveTapeDrivers'] = Convert-ToYesNo $env:REMOVE_TAPE_DRIVERS 'yes'
-            $buildParams['RemoveRdpDrivers'] = Convert-ToYesNo $env:REMOVE_RDP_DRIVERS 'yes'
+            # Parse driver removal string (format: "printer,scanner,bluetooth,smartcard,tape,rdp" or "all" or empty)
+            $driverRemoveStr = if ($env:REMOVE_DRIVERS) { $env:REMOVE_DRIVERS.Trim().ToLower() } else { 'all' }
+            
+            # If "all" or empty, remove all drivers
+            if ($driverRemoveStr -eq 'all' -or $driverRemoveStr -eq '') {
+              $driverRemoveStr = 'printer,scanner,bluetooth,smartcard,tape,rdp'
+            }
+            
+            # Parse individual driver types
+            $driverList = $driverRemoveStr -split ',' | ForEach-Object { $_.Trim() }
+            
+            # Set each driver removal parameter based on whether it's in the list
+            $buildParams['RemovePrinterDrivers'] = if ($driverList -contains 'printer') { 'yes' } else { 'no' }
+            $buildParams['RemoveScannerDrivers'] = if ($driverList -contains 'scanner') { 'yes' } else { 'no' }
+            $buildParams['RemoveBluetoothDrivers'] = if ($driverList -contains 'bluetooth') { 'yes' } else { 'no' }
+            $buildParams['RemoveSmartcardDrivers'] = if ($driverList -contains 'smartcard') { 'yes' } else { 'no' }
+            $buildParams['RemoveTapeDrivers'] = if ($driverList -contains 'tape') { 'yes' } else { 'no' }
+            $buildParams['RemoveRdpDrivers'] = if ($driverList -contains 'rdp') { 'yes' } else { 'no' }
             
             Write-Host "Driver removal options (nano): Printer=$($buildParams['RemovePrinterDrivers']), Scanner=$($buildParams['RemoveScannerDrivers']), Bluetooth=$($buildParams['RemoveBluetoothDrivers']), Smartcard=$($buildParams['RemoveSmartcardDrivers']), Tape=$($buildParams['RemoveTapeDrivers']), RDP=$($buildParams['RemoveRdpDrivers'])"
+            Write-Host "Driver removal input: $driverRemoveStr"
           }
           
           Write-Host "Debloat options ($buildType): Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
