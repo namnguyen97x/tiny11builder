@@ -41,7 +41,7 @@ on:
     inputs:
       build_type:
         description: 'Build type'
-        required: true
+        required: false
         default: 'maker'
         type: choice
         options:
