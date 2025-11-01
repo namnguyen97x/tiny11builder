@@ -83,7 +83,7 @@ on:
         default: true
         type: boolean
       remove_drivers:
-        description: 'Remove non-essential drivers (NANO ONLY). Format: printer,scanner,bluetooth,smartcard,tape,rdp. Default: all (or leave empty for all)'
+        description: 'Remove non-essential drivers (NANO ONLY). Format: comma-separated list (e.g., printer,scanner,bluetooth). To keep a driver, remove its name from the list. Default: all drivers'
         required: false
         default: 'printer,scanner,bluetooth,smartcard,tape,rdp'
         type: string
@@ -257,19 +257,23 @@ jobs:
           $buildParams['RemoveStore'] = Convert-ToYesNo $env:REMOVE_STORE 'yes'
           
           # Add driver removal parameters (NANO ONLY)
+          # These parameters are only passed to nano11maker.ps1, not to tiny11maker.ps1 or tiny11Coremaker.ps1
           if ($buildType -eq 'nano') {
             # Parse driver removal string (format: "printer,scanner,bluetooth,smartcard,tape,rdp" or "all" or empty)
+            # If a driver name is NOT in the list, it will NOT be removed (will be kept)
             $driverRemoveStr = if ($env:REMOVE_DRIVERS) { $env:REMOVE_DRIVERS.Trim().ToLower() } else { 'all' }
             
-            # If "all" or empty, remove all drivers
+            # If "all" or empty, remove all drivers by default
             if ($driverRemoveStr -eq 'all' -or $driverRemoveStr -eq '') {
               $driverRemoveStr = 'printer,scanner,bluetooth,smartcard,tape,rdp'
             }
             
-            # Parse individual driver types
-            $driverList = $driverRemoveStr -split ',' | ForEach-Object { $_.Trim() }
+            # Parse individual driver types from comma-separated list
+            $driverList = $driverRemoveStr -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
             
             # Set each driver removal parameter based on whether it's in the list
+            # If driver name is IN the list → 'yes' (remove it)
+            # If driver name is NOT in the list → 'no' (keep it)
             $buildParams['RemovePrinterDrivers'] = if ($driverList -contains 'printer') { 'yes' } else { 'no' }
             $buildParams['RemoveScannerDrivers'] = if ($driverList -contains 'scanner') { 'yes' } else { 'no' }
             $buildParams['RemoveBluetoothDrivers'] = if ($driverList -contains 'bluetooth') { 'yes' } else { 'no' }
@@ -279,6 +283,7 @@ jobs:
             
             Write-Host "Driver removal options (nano): Printer=$($buildParams['RemovePrinterDrivers']), Scanner=$($buildParams['RemoveScannerDrivers']), Bluetooth=$($buildParams['RemoveBluetoothDrivers']), Smartcard=$($buildParams['RemoveSmartcardDrivers']), Tape=$($buildParams['RemoveTapeDrivers']), RDP=$($buildParams['RemoveRdpDrivers'])"
             Write-Host "Driver removal input: $driverRemoveStr"
+            Write-Host "Note: Drivers NOT in the list will be KEPT (not removed)"
           }
           
           Write-Host "Debloat options ($buildType): Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"

@@ -392,6 +392,8 @@ $driverRepo = Join-Path -Path $winDir -ChildPath "System32\DriverStore\FileRepos
 $patternsToRemove = @()
 
 # Add driver patterns based on parameters
+# Only add patterns for drivers that should be removed (parameter = 'yes')
+# If parameter = 'no', the driver will be kept (not added to removal list)
 if ($RemovePrinterDrivers -eq 'yes') {
     $patternsToRemove += 'prn*'  # Printer drivers (e.g., prnms001.inf, prnge001.inf)
 }
