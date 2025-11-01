@@ -7,12 +7,14 @@
     từ Windows-ISO-Debloater để tích hợp vào tiny11maker và tiny11Coremaker
 #>
 
-# Danh sách AppX packages để remove
+# Danh sách AppX packages để remove (áp dụng cho cả Windows 10 và Windows 11)
 $script:appxPatternsToRemove = @(
     "Microsoft.Microsoft3DViewer*",
     "Microsoft.WindowsAlarms*",
     "Microsoft.BingNews*",
     "Microsoft.BingWeather*",
+    "Microsoft.BingSports*",
+    "Microsoft.BingFinance*",
     "Clipchamp.Clipchamp*",
     "Microsoft.549981C3F5F10*",
     "Microsoft.Windows.DevHome*",
@@ -46,6 +48,9 @@ $script:appxPatternsToRemove = @(
     "Microsoft.XboxGamingOverlay*",
     "Microsoft.XboxSpeechToTextOverlay*",
     "Microsoft.Xbox.TCUI*",
+    "Microsoft.XboxIdentityProvider*",
+    "Microsoft.XboxGameSpeechWindow*",
+    "Microsoft.Windows.XboxGameCallableUI*",
     "MicrosoftWindows.CrossDevice*",
     "Microsoft.Windows.PeopleExperienceHost*",
     "Windows.CBSPreview*",
@@ -71,9 +76,18 @@ $script:appxPatternsToRemove = @(
     "Microsoft.Windows.TouchKeyboard*",
     "Microsoft.Windows.WifiSense*",
     "Microsoft.Windows.AssignedAccessLockApp*",
-    "Microsoft.Windows.XboxGameCallableUI*",
-    "Microsoft.XboxIdentityProvider*",
-    "Microsoft.XboxGameSpeechWindow*"
+    "Microsoft.Windows.ContentDeliveryManager*",
+    "Microsoft.Windows.ContentDeliveryManagerDeliveryOptimization*",
+    "Microsoft.Windows.ContentDeliveryManager.WindowsContentDeliveryManager*",
+    "Microsoft.MicrosoftStickyNotes*",
+    "Microsoft.WindowsCalculator*",
+    "Microsoft.WindowsTerminal*",
+    "Microsoft.WindowsNotepad*",
+    "Microsoft.WindowsPaint*",
+    "Microsoft.Windows.CloudExperienceHost*",
+    "Microsoft.WindowsTips*",
+    "Microsoft.OneDriveSync*",
+    "Microsoft.OneDrive*"
 )
 
 # Danh sách Capabilities để remove
