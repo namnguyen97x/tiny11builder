@@ -48,9 +48,9 @@ on:
         default: true
         type: boolean
       remove_bluetooth_drivers:
-        description: 'Remove Bluetooth drivers (unchecked = KEPT to preserve Bluetooth functionality)'
+        description: 'Remove Bluetooth drivers (uncheck to KEEP Bluetooth functionality)'
         required: false
-        default: false
+        default: true
         type: boolean
       remove_smartcard_drivers:
         description: 'Remove smartcard reader drivers'
@@ -209,7 +209,7 @@ jobs:
           Write-Host "Adding driver removal parameters..."
           $buildParams['RemovePrinterDrivers'] = Convert-ToYesNo $env:REMOVE_PRINTER_DRIVERS 'yes'
           $buildParams['RemoveScannerDrivers'] = Convert-ToYesNo $env:REMOVE_SCANNER_DRIVERS 'yes'
-          $buildParams['RemoveBluetoothDrivers'] = Convert-ToYesNo $env:REMOVE_BLUETOOTH_DRIVERS 'no'
+          $buildParams['RemoveBluetoothDrivers'] = Convert-ToYesNo $env:REMOVE_BLUETOOTH_DRIVERS 'yes'
           $buildParams['RemoveSmartcardDrivers'] = Convert-ToYesNo $env:REMOVE_SMARTCARD_DRIVERS 'yes'
           $buildParams['RemoveTapeDrivers'] = Convert-ToYesNo $env:REMOVE_TAPE_DRIVERS 'yes'
           $buildParams['RemoveRdpDrivers'] = Convert-ToYesNo $env:REMOVE_RDP_DRIVERS 'yes'

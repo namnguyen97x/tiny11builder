@@ -62,37 +62,25 @@ on:
           - Home
           - ProWorkstations
       remove_defender:
-        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove Windows Defender (default: false)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender'
         required: false
-        default: 'false'
-        type: choice
-        options:
-          - true
-          - false
+        default: false
+        type: boolean
       remove_ai:
-        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove AI/Copilot components (default: true)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove AI/Copilot components'
         required: false
-        default: 'true'
-        type: choice
-        options:
-          - true
-          - false
+        default: true
+        type: boolean
       remove_edge:
-        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove Microsoft Edge browser (default: true)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Edge browser'
         required: false
-        default: 'true'
-        type: choice
-        options:
-          - true
-          - false
+        default: true
+        type: boolean
       remove_store:
-        description: '⚠️ MAKER ONLY (ignored for core/nano): Remove Microsoft Store (default: true)'
+        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Store'
         required: false
-        default: 'true'
-        type: choice
-        options:
-          - true
-          - false
+        default: true
+        type: boolean
   push:
     branches:
       - main
@@ -242,23 +230,25 @@ jobs:
           $buildParams['VersionSelector'] = $versionSelector
           Write-Host "Version selector: $versionSelector"
           
-          # Add optional debloat parameters for all build types (maker, core, nano)
+          # Helper function to convert boolean/string to yes/no
+          function Convert-ToYesNo {
+            param($value, $default = 'yes')
+            if (-not $value) { return $default }
+            $str = $value.ToString().ToLower()
+            if ($str -eq 'true' -or $str -eq '1' -or $str -eq 'yes') { return 'yes' }
+            return 'no'
+          }
+          
+          # Add optional debloat parameters for all build types (maker, core)
           # All build types now honor workflow debloat settings
           Write-Host "Adding optional debloat parameters..."
           
-          # Use environment variables with defaults
-          $removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'false' }
-          $removeAI = if ($env:REMOVE_AI) { $env:REMOVE_AI } else { 'true' }
-          $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'true' }
-          $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
+          $buildParams['RemoveDefender'] = Convert-ToYesNo $env:REMOVE_DEFENDER 'no'
+          $buildParams['RemoveAI'] = Convert-ToYesNo $env:REMOVE_AI 'yes'
+          $buildParams['RemoveEdge'] = Convert-ToYesNo $env:REMOVE_EDGE 'yes'
+          $buildParams['RemoveStore'] = Convert-ToYesNo $env:REMOVE_STORE 'yes'
           
-          # Convert true/false to yes/no for script parameters
-          $buildParams['RemoveDefender'] = if ($removeDefender -eq 'true') { 'yes' } else { 'no' }
-          $buildParams['RemoveAI'] = if ($removeAI -eq 'true') { 'yes' } else { 'no' }
-          $buildParams['RemoveEdge'] = if ($removeEdge -eq 'true') { 'yes' } else { 'no' }
-          $buildParams['RemoveStore'] = if ($removeStore -eq 'true') { 'yes' } else { 'no' }
-          
-          Write-Host "Debloat options ($buildType): Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
+          Write-Host "Debloat options ($buildType): Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
           
           Write-Host "Running: $scriptName"
           Write-Host "Parameters: ISO=$($buildParams['ISO']), NonInteractive=$($buildParams['NonInteractive']), VersionSelector=$($buildParams['VersionSelector'])"
