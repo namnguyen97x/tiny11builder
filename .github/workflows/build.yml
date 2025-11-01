@@ -47,6 +47,7 @@ on:
         options:
           - maker
           - core
+          - nano
       iso_url:
         description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
         required: false
@@ -78,6 +79,36 @@ on:
         type: boolean
       remove_store:
         description: 'Remove Microsoft Store'
+        required: false
+        default: true
+        type: boolean
+      remove_printer_drivers:
+        description: 'Remove printer drivers (NANO ONLY)'
+        required: false
+        default: true
+        type: boolean
+      remove_scanner_drivers:
+        description: 'Remove scanner drivers (NANO ONLY)'
+        required: false
+        default: true
+        type: boolean
+      remove_bluetooth_drivers:
+        description: 'Remove Bluetooth drivers (NANO ONLY)'
+        required: false
+        default: true
+        type: boolean
+      remove_smartcard_drivers:
+        description: 'Remove smartcard drivers (NANO ONLY)'
+        required: false
+        default: true
+        type: boolean
+      remove_tape_drivers:
+        description: 'Remove tape drivers (NANO ONLY)'
+        required: false
+        default: true
+        type: boolean
+      remove_rdp_drivers:
+        description: 'Remove RDP virtual bus drivers (NANO ONLY)'
         required: false
         default: true
         type: boolean
@@ -183,6 +214,12 @@ jobs:
           REMOVE_AI: ${{ github.event.inputs.remove_ai || inputs.remove_ai || 'true' }}
           REMOVE_EDGE: ${{ github.event.inputs.remove_edge || inputs.remove_edge || 'true' }}
           REMOVE_STORE: ${{ github.event.inputs.remove_store || inputs.remove_store || 'true' }}
+          REMOVE_PRINTER_DRIVERS: ${{ github.event.inputs.remove_printer_drivers || inputs.remove_printer_drivers || 'true' }}
+          REMOVE_SCANNER_DRIVERS: ${{ github.event.inputs.remove_scanner_drivers || inputs.remove_scanner_drivers || 'true' }}
+          REMOVE_BLUETOOTH_DRIVERS: ${{ github.event.inputs.remove_bluetooth_drivers || inputs.remove_bluetooth_drivers || 'true' }}
+          REMOVE_SMARTCARD_DRIVERS: ${{ github.event.inputs.remove_smartcard_drivers || inputs.remove_smartcard_drivers || 'true' }}
+          REMOVE_TAPE_DRIVERS: ${{ github.event.inputs.remove_tape_drivers || inputs.remove_tape_drivers || 'true' }}
+          REMOVE_RDP_DRIVERS: ${{ github.event.inputs.remove_rdp_drivers || inputs.remove_rdp_drivers || 'true' }}
         run: |
           # Set error handling - continue on non-critical errors
           $ErrorActionPreference = 'Continue'
@@ -219,6 +256,7 @@ jobs:
           $buildType = $env:BUILD_TYPE
           $scriptName = switch ($buildType) {
             'core' { 'tiny11Coremaker.ps1' }
+            'nano' { 'nano11maker.ps1' }
             default { 'tiny11maker.ps1' }
           }
           
@@ -239,7 +277,7 @@ jobs:
             return 'no'
           }
           
-          # Add optional debloat parameters for all build types (maker, core)
+          # Add optional debloat parameters for all build types (maker, core, nano)
           # All build types now honor workflow debloat settings
           Write-Host "Adding optional debloat parameters..."
           
@@ -248,11 +286,26 @@ jobs:
           $buildParams['RemoveEdge'] = Convert-ToYesNo $env:REMOVE_EDGE 'yes'
           $buildParams['RemoveStore'] = Convert-ToYesNo $env:REMOVE_STORE 'yes'
           
+          # Add driver removal parameters (NANO ONLY)
+          if ($buildType -eq 'nano') {
+            $buildParams['RemovePrinterDrivers'] = Convert-ToYesNo $env:REMOVE_PRINTER_DRIVERS 'yes'
+            $buildParams['RemoveScannerDrivers'] = Convert-ToYesNo $env:REMOVE_SCANNER_DRIVERS 'yes'
+            $buildParams['RemoveBluetoothDrivers'] = Convert-ToYesNo $env:REMOVE_BLUETOOTH_DRIVERS 'yes'
+            $buildParams['RemoveSmartcardDrivers'] = Convert-ToYesNo $env:REMOVE_SMARTCARD_DRIVERS 'yes'
+            $buildParams['RemoveTapeDrivers'] = Convert-ToYesNo $env:REMOVE_TAPE_DRIVERS 'yes'
+            $buildParams['RemoveRdpDrivers'] = Convert-ToYesNo $env:REMOVE_RDP_DRIVERS 'yes'
+            
+            Write-Host "Driver removal options (nano): Printer=$($buildParams['RemovePrinterDrivers']), Scanner=$($buildParams['RemoveScannerDrivers']), Bluetooth=$($buildParams['RemoveBluetoothDrivers']), Smartcard=$($buildParams['RemoveSmartcardDrivers']), Tape=$($buildParams['RemoveTapeDrivers']), RDP=$($buildParams['RemoveRdpDrivers'])"
+          }
+          
           Write-Host "Debloat options ($buildType): Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
           
           Write-Host "Running: $scriptName"
           Write-Host "Parameters: ISO=$($buildParams['ISO']), NonInteractive=$($buildParams['NonInteractive']), VersionSelector=$($buildParams['VersionSelector'])"
           Write-Host "  Debloat: Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
+          if ($buildType -eq 'nano') {
+            Write-Host "  Drivers: Printer=$($buildParams['RemovePrinterDrivers']), Scanner=$($buildParams['RemoveScannerDrivers']), Bluetooth=$($buildParams['RemoveBluetoothDrivers']), Smartcard=$($buildParams['RemoveSmartcardDrivers']), Tape=$($buildParams['RemoveTapeDrivers']), RDP=$($buildParams['RemoveRdpDrivers'])"
+          }
           
           # Run the builder script with splatting
           # Catch errors but continue - scripts have their own error handling
@@ -278,6 +331,7 @@ jobs:
           # Check if ISO was created (different names for different build types)
           $isoName = switch ($buildType) {
             'core' { 'tiny11-core.iso' }
+            'nano' { 'nano11.iso' }
             default { 'tiny11.iso' }
           }
           # Use repository workspace, not $PSScriptRoot (which points to a temp script path in GitHub Actions)
@@ -306,6 +360,7 @@ jobs:
           path: |
             tiny11.iso
             tiny11-core.iso
+            nano11.iso
             *.log
           retention-days: 7
           compression-level: 0
