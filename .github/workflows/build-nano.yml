@@ -67,6 +67,11 @@ on:
         required: false
         default: true
         type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-nano.yml'
 
 jobs:
   build:
