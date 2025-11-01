@@ -476,6 +476,46 @@ function Remove-DebloatFiles {
                 Write-Warning "    Failed to remove: $oneDrivePath"
             }
         }
+        
+        # Remove OneDrive shortcuts from Start Menu
+        Write-Output "  Removing OneDrive Start Menu shortcuts..."
+        $startMenuPaths = @(
+            "$MountPath\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+            "$MountPath\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive",
+            "$MountPath\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+            "$MountPath\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive"
+        )
+        
+        foreach ($shortcutPath in $startMenuPaths) {
+            if (Test-Path $shortcutPath) {
+                try {
+                    & takeown /f $shortcutPath /r 2>&1 | Out-Null
+                    & icacls $shortcutPath /grant "Administrators:(F)" /T /C 2>&1 | Out-Null
+                    Remove-Item -Path $shortcutPath -Recurse -Force -ErrorAction SilentlyContinue
+                    Write-Output "    Removed shortcut: $shortcutPath"
+                } catch {
+                    Write-Warning "    Failed to remove shortcut: $shortcutPath"
+                }
+            }
+        }
+        
+        # Remove OneDrive from Start Menu tiles/cache
+        try {
+            $tileCachePaths = @(
+                "$MountPath\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+                "$MountPath\Users\Default\AppData\Local\TileDataLayer\Database\*OneDrive*"
+            )
+            
+            foreach ($cachePath in $tileCachePaths) {
+                if (Test-Path $cachePath) {
+                    & takeown /f $cachePath /r 2>&1 | Out-Null
+                    & icacls $cachePath /grant "Administrators:(F)" /T /C 2>&1 | Out-Null
+                    Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        } catch {
+            Write-Warning "    Failed to remove OneDrive tile cache"
+        }
     }
 }
 

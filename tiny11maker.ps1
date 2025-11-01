@@ -572,6 +572,22 @@ if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
     & 'takeown' '/f' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" | Out-Null
     & 'icacls' "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
     Remove-Item -Path "$ScratchDisk\scratchdir\Windows\System32\OneDriveSetup.exe" -Force | Out-Null
+    
+    Write-Output "Removing OneDrive Start Menu shortcuts:"
+    $startMenuPaths = @(
+        "$ScratchDisk\scratchdir\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+        "$ScratchDisk\scratchdir\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive",
+        "$ScratchDisk\scratchdir\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+        "$ScratchDisk\scratchdir\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive"
+    )
+    
+    foreach ($shortcutPath in $startMenuPaths) {
+        if (Test-Path $shortcutPath) {
+            & 'takeown' '/f' $shortcutPath '/r' | Out-Null
+            & 'icacls' $shortcutPath '/grant' "$($adminGroup.Value):(F)" '/T' '/C' | Out-Null
+            Remove-Item -Path $shortcutPath -Recurse -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
 }
 
 Write-Output "Removal complete!"

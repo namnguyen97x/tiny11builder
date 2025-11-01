@@ -483,6 +483,23 @@ if (Test-Path "$scratchDir\Windows\System32\Recovery\winre.wim") {
 }
 
 Remove-Item -Path "$scratchDir\Windows\System32\OneDriveSetup.exe" -Force -ErrorAction SilentlyContinue 
+
+Write-Host "Removing OneDrive Start Menu shortcuts:"
+$startMenuPaths = @(
+    "$scratchDir\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+    "$scratchDir\ProgramData\Microsoft\Windows\Start Menu\Programs\OneDrive",
+    "$scratchDir\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk",
+    "$scratchDir\Users\Default\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive"
+)
+
+foreach ($shortcutPath in $startMenuPaths) {
+    if (Test-Path $shortcutPath) {
+        & 'takeown' '/f' $shortcutPath '/r' 2>&1 | Out-Null
+        & 'icacls' $shortcutPath '/grant' "$($adminGroup.Value):(F)" '/T' '/C' 2>&1 | Out-Null
+        Remove-Item -Path $shortcutPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 & 'dism' '/English' "/image:$scratchDir" '/Cleanup-Image' '/StartComponentCleanup' '/ResetBase' 
 
 Write-Host "Taking ownership of the WinSxS folder. This might take a while..."
