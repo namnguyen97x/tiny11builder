@@ -167,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nano11.iso
-          path: ${{ env.OUTPUT_ISO }}
+          path: nano11.iso
           retention-days: 1
           if-no-files-found: error
 
