@@ -17,7 +17,7 @@ param (
     # Driver removal options (honored from workflow)
     [ValidateSet('yes','no')][string]$RemovePrinterDrivers = 'yes',
     [ValidateSet('yes','no')][string]$RemoveScannerDrivers = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveBluetoothDrivers = 'no',
+    [ValidateSet('yes','no')][string]$RemoveBluetoothDrivers = 'yes',
     [ValidateSet('yes','no')][string]$RemoveSmartcardDrivers = 'yes',
     [ValidateSet('yes','no')][string]$RemoveTapeDrivers = 'yes',
     [ValidateSet('yes','no')][string]$RemoveRdpDrivers = 'yes'
