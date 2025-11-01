@@ -6,7 +6,13 @@ param (
     [switch]$NonInteractive = $false,
     
     # Version selector (Auto, Pro, Home, ProWorkstations)
-    [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto'
+    [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto',
+    
+    # Optional debloat options (honored from workflow)
+    [ValidateSet('yes','no')][string]$RemoveDefender = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveAI = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveStore = 'yes'
 )
 
 # Set error handling to continue on non-critical errors
@@ -58,6 +64,9 @@ if (-not $NonInteractive) {
 
 Write-Output "Welcome to nano11 builder!"
 Write-Output "This script generates a significantly reduced Windows 11 image. However, it's not suitable for regular use due to its lack of serviceability - you can't add languages, updates, or features post-creation. nano11 is not a full Windows 11 substitute but a rapid testing or development tool, potentially useful for VM environments."
+
+# RemoveDefender, RemoveAI, RemoveEdge, RemoveStore được set từ parameters (honored from workflow)
+Write-Output "Debloat (nano): Defender=$RemoveDefender, AI=$RemoveAI, Edge=$RemoveEdge, Store=$RemoveStore"
 
 if (-not $NonInteractive) {
     Write-Output "Do you want to continue? (y/n)"
@@ -298,7 +307,6 @@ $packagePatterns = @(
     "*IME-zh-tw*",
 
     # --- Core OS Features (Removal is aggressive and will break functionality) ---
-    "Windows-Defender-Client-Package~",
     "Microsoft-Windows-Search-Engine-Client-Package~",
     "Microsoft-Windows-Kernel-LA57-FoD-Package~",
 
@@ -318,6 +326,13 @@ $packagePatterns = @(
     "Microsoft-Media-MPEG2-Decoder-Package~",
     "Microsoft-Windows-Wallpaper-Content-Extended-FoD-Package~"
 )
+
+# Honor RemoveDefender parameter from workflow
+if ($RemoveDefender -eq 'yes') {
+    $packagePatterns += "Windows-Defender-Client-Package~"
+} else {
+    Write-Output "Keeping Windows Defender (RemoveDefender=no)"
+}
 
 $allPackages = & dism /image:$scratchDir /Get-Packages /Format:Table
 $allPackages = $allPackages -split "`n" | Select-Object -Skip 1
@@ -345,6 +360,20 @@ foreach ($packagePattern in $packagePatterns) {
         }
     }
 }
+
+# Enable .NET Framework 3.5 automatically for nano build
+Write-Host "Enabling .NET Framework 3.5..."
+try {
+    & 'dism' "/image:$mainOSDrive\scratchdir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$($env:SystemDrive)\nano11\sources\sxs" 
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host ".NET 3.5 has been enabled successfully." -ForegroundColor Green
+    } else {
+        Write-Warning "Failed to enable .NET 3.5 (exit code: $LASTEXITCODE). Continuing..."
+    }
+} catch {
+    Write-Warning "Error enabling .NET 3.5: $($_.Exception.Message). Continuing..."
+}
+
 Write-Host "Removing pre-compiled .NET assemblies (Native Images)..."
 Remove-Item -Path "$scratchDir\Windows\assembly\NativeImages_*" -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -392,16 +421,18 @@ Remove-Item -Path "$scratchDir\Windows\System32\InputMethod\CHS" -Recurse -Force
 Remove-Item -Path "$scratchDir\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Web") -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Help") -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path (Join-Path -Path $winDir -ChildPath "Cursors") -Recurse -Force -ErrorAction SilentlyContinue
 
-Write-Host "Removing Edge, WinRE, and OneDrive..."
-try {
-    Get-ChildItem -Path "$scratchDir\Program Files (x86)" -Filter "Microsoft\Edge*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-        Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+# Honor RemoveEdge parameter from workflow
+if ($RemoveEdge -eq 'yes') {
+    Write-Host "Removing Edge..."
+    try {
+        Get-ChildItem -Path "$scratchDir\Program Files (x86)" -Filter "Microsoft\Edge*" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        Write-Host "  Warning: Some Edge files could not be removed (continuing...)" -ForegroundColor Yellow
     }
-} catch {
-    Write-Host "  Warning: Some Edge files could not be removed (continuing...)" -ForegroundColor Yellow
-}
 
-if ($architecture -eq 'amd64') { 
+    if ($architecture -eq 'amd64') { 
     try {
         $folderPath = Get-ChildItem -Path "$scratchDir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
         if ($folderPath) { 
@@ -410,9 +441,12 @@ if ($architecture -eq 'amd64') {
     } catch {
         Write-Host "  Warning: Edge WebView WinSxS folder could not be removed (continuing...)" -ForegroundColor Yellow
     }
-}
+    }
 
-Remove-Item -Path "$scratchDir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "$scratchDir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force -ErrorAction SilentlyContinue
+} else {
+    Write-Host "Keeping Edge (RemoveEdge=no)"
+}
 
 if (Test-Path "$scratchDir\Windows\System32\Recovery\winre.wim") {
     try {
@@ -593,9 +627,12 @@ Write-Host "Disabling BitLocker Device Encryption"
 Write-Host "Disabling Chat icon:"
 & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Chat' '/v' 'ChatIcon' '/t' 'REG_DWORD' '/d' '3' '/f' | Out-Null
 & 'reg' 'add' 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' '/v' 'TaskbarMn' '/t' 'REG_DWORD' '/d' '0' '/f' | Out-Null
-Write-Host "Removing Edge related registries"
-reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" /f | Out-Null
-reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update" /f | Out-Null
+# Honor RemoveEdge parameter from workflow
+if ($RemoveEdge -eq 'yes') {
+    Write-Host "Removing Edge related registries"
+    reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" /f | Out-Null
+    reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update" /f | Out-Null
+}
 Write-Host "Disabling OneDrive folder backup"
 & 'reg' 'add' "HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive" '/v' 'DisableFileSyncNGSC' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
 Write-Host "Disabling Telemetry:"
@@ -659,19 +696,24 @@ Write-Host "Disabling Windows Update..."
 & 'reg' 'delete' 'HKLM\zSYSTEM\ControlSet001\Services\WaaSMedicSVC' '/f'
 & 'reg' 'delete' 'HKLM\zSYSTEM\ControlSet001\Services\UsoSvc' '/f'
 & 'reg' 'add' 'HKEY_LOCAL_MACHINE\zSOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' '/v' 'NoAutoUpdate' '/t' 'REG_DWORD' '/d' '1' '/f'
-Write-Host "Disabling Windows Defender"
-$servicePaths = @(
-    "WinDefend",
-    "WdNisSvc",
-    "WdNisDrv",
-    "WdFilter",
-    "Sense"
-)
+# Honor RemoveDefender parameter from workflow
+if ($RemoveDefender -eq 'yes') {
+    Write-Host "Disabling Windows Defender"
+    $servicePaths = @(
+        "WinDefend",
+        "WdNisSvc",
+        "WdNisDrv",
+        "WdFilter",
+        "Sense"
+    )
 
-foreach ($path in $servicePaths) {
-    Set-ItemProperty -Path "HKLM:\zSYSTEM\ControlSet001\Services\$path" -Name "Start" -Value 4
-}
-& 'reg' 'add' 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' '/v' 'SettingsPageVisibility' '/t' 'REG_SZ' '/d' 'hide:virus;windowsupdate' '/f' 
+    foreach ($path in $servicePaths) {
+        Set-ItemProperty -Path "HKLM:\zSYSTEM\ControlSet001\Services\$path" -Name "Start" -Value 4
+    }
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' '/v' 'SettingsPageVisibility' '/t' 'REG_SZ' '/d' 'hide:virus;windowsupdate' '/f'
+} else {
+    Write-Host "Keeping Windows Defender enabled (RemoveDefender=no)"
+} 
 Write-Host "Tweaking complete!"
 Write-Host "Unmounting Registry..."
 reg unload HKLM\zCOMPONENTS >null

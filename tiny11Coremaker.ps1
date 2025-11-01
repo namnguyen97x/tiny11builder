@@ -4,7 +4,13 @@ param (
     [switch]$NonInteractive = $false,
     
     # Version selector (Auto, Pro, Home, ProWorkstations)
-    [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto'
+    [ValidateSet('Auto','Pro','Home','ProWorkstations')][string]$VersionSelector = 'Auto',
+    
+    # Optional debloat options (honored from workflow)
+    [ValidateSet('yes','no')][string]$RemoveDefender = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveAI = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveStore = 'yes'
 )
 
 # Set error handling to continue on non-critical errors
@@ -28,15 +34,16 @@ if ((Get-ExecutionPolicy) -eq 'Restricted') {
 }
 
 # Debloat settings - tự động enable theo chính sách của core maker
+# RemoveDefender, RemoveAI, RemoveEdge, RemoveStore được set từ parameters (honored from workflow)
 $EnableDebloat = 'yes'
 $RemoveAppx = 'yes'
 $RemoveCapabilities = 'yes'
 $RemoveWindowsPackages = 'yes'
-$RemoveEdge = 'yes'
 $RemoveOneDrive = 'yes'
 $DisableTelemetry = 'yes'
 $DisableSponsoredApps = 'yes'
 $DisableAds = 'yes'
+Write-Host "Debloat (core): Defender=$RemoveDefender, AI=$RemoveAI, Edge=$RemoveEdge, Store=$RemoveStore"
 
 # Import debloater module
 if ($EnableDebloat -eq 'yes') {
@@ -369,7 +376,10 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         -RemoveAppx:($RemoveAppx -eq 'yes') `
         -RemoveCapabilities:($RemoveCapabilities -eq 'yes') `
         -RemoveWindowsPackages:($RemoveWindowsPackages -eq 'yes') `
-        -LanguageCode $languageCode
+        -LanguageCode $languageCode `
+        -RemoveStore:($RemoveStore -eq 'yes') `
+        -RemoveAI:($RemoveAI -eq 'yes') `
+        -RemoveDefender:($RemoveDefender -eq 'yes')
     
     Remove-DebloatFiles -MountPath "$mainOSDrive\scratchdir" `
         -RemoveEdge:($RemoveEdge -eq 'yes') `
@@ -410,11 +420,16 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
         "Microsoft-Windows-LanguageFeatures-TextToSpeech-$languageCode-Package~31bf3856ad364e35",
         "Microsoft-Windows-MediaPlayer-Package~31bf3856ad364e35",
         "Microsoft-Windows-Wallpaper-Content-Extended-FoD-Package~31bf3856ad364e35",
-        "Windows-Defender-Client-Package~31bf3856ad364e35~",
         "Microsoft-Windows-WordPad-FoD-Package~",
         "Microsoft-Windows-TabletPCMath-Package~",
         "Microsoft-Windows-StepsRecorder-Package~"
     )
+    # Honor RemoveDefender parameter from workflow
+    if ($RemoveDefender -eq 'yes') {
+        $packagePatterns += "Windows-Defender-Client-Package~31bf3856ad364e35~"
+    } else {
+        Write-Host "Keeping Windows Defender (RemoveDefender=no)"
+    }
 
     # Get all packages
     $allPackages = & dism /image:$scratchDir /Get-Packages /Format:Table
@@ -454,57 +469,56 @@ if (-not $NonInteractive) {
     }
 }
 
-Write-Host "Do you want to enable .NET 3.5? This cannot be done after the image has been created! (y/n)"
-if ($NonInteractive) {
-    $input = 'n'
-    Write-Host "Non-interactive mode: Skipping .NET 3.5 (default: no)"
-} else {
-    $input = Read-Host
-}
-
-if ($input -eq 'y') {
-    Write-Host "Enabling .NET 3.5..."
-    & 'dism'  "/image:$scratchDir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$($env:SystemDrive)\tiny11\sources\sxs" 
-    Write-Host ".NET 3.5 has been enabled."
-}
-elseif ($input -eq 'n') {
-    Write-Host "You chose not to enable .NET 3.5. Continuing..."
-}
-else {
-    Write-Host "Invalid input. Please enter 'y' to enable .NET 3.5 or 'n' to continue without installing .net 3.5."
+# Enable .NET Framework 3.5 automatically for core build
+Write-Host "Enabling .NET Framework 3.5..."
+try {
+    & 'dism' "/image:$mainOSDrive\scratchdir" '/enable-feature' '/featurename:NetFX3' '/All' "/source:$($env:SystemDrive)\tiny11\sources\sxs" 
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host ".NET 3.5 has been enabled successfully." -ForegroundColor Green
+    } else {
+        Write-Warning "Failed to enable .NET 3.5 (exit code: $LASTEXITCODE). Continuing..."
+    }
+} catch {
+    Write-Warning "Error enabling .NET 3.5: $($_.Exception.Message). Continuing..."
 }
 # Chỉ chạy method cũ nếu debloater không được enable
 if ($EnableDebloat -ne 'yes' -or -not (Get-Module -Name tiny11-debloater)) {
-    Write-Host "Removing Edge:"
-    Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force >null
-    Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force >null
-    Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force >null
-    if ($architecture -eq 'amd64') {
-        $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName
+    # Honor RemoveEdge parameter from workflow
+    if ($RemoveEdge -eq 'yes') {
+        Write-Host "Removing Edge:"
+        Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\Edge" -Recurse -Force >null
+        Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeUpdate" -Recurse -Force >null
+        Remove-Item -Path "$mainOSDrive\scratchdir\Program Files (x86)\Microsoft\EdgeCore" -Recurse -Force >null
+        
+        if ($architecture -eq 'amd64') {
+            $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "amd64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName
 
-        if ($folderPath) {
-            & 'takeown' '/f' $folderPath '/r' >null
-            & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
-            Remove-Item -Path $folderPath -Recurse -Force >null
-        } else {
-            Write-Host "Folder not found."
-        }
-    } elseif ($architecture -eq 'arm64') {
-        $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "arm64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName >null
+            if ($folderPath) {
+                & 'takeown' '/f' $folderPath '/r' >null
+                & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
+                Remove-Item -Path $folderPath -Recurse -Force >null
+            } else {
+                Write-Host "Folder not found."
+            }
+        } elseif ($architecture -eq 'arm64') {
+            $folderPath = Get-ChildItem -Path "$mainOSDrive\scratchdir\Windows\WinSxS" -Filter "arm64_microsoft-edge-webview_31bf3856ad364e35*" -Directory | Select-Object -ExpandProperty FullName >null
 
-        if ($folderPath) {
-            & 'takeown' '/f' $folderPath '/r'>null
-            & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
-            Remove-Item -Path $folderPath -Recurse -Force >null
+            if ($folderPath) {
+                & 'takeown' '/f' $folderPath '/r'>null
+                & icacls $folderPath  "/grant" "$($adminGroup.Value):(F)" '/T' '/C' >null
+                Remove-Item -Path $folderPath -Recurse -Force >null
+            } else {
+                Write-Host "Folder not found."
+            }
         } else {
-            Write-Host "Folder not found."
+            Write-Host "Unknown architecture: $architecture"
         }
+        & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r'
+        & 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C'
+        Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force
     } else {
-        Write-Host "Unknown architecture: $architecture"
+        Write-Host "Keeping Edge (RemoveEdge=no)"
     }
-    & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/r'
-    & 'icacls' "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" '/grant' "$($adminGroup.Value):(F)" '/T' '/C'
-    Remove-Item -Path "$mainOSDrive\scratchdir\Windows\System32\Microsoft-Edge-Webview" -Recurse -Force
     
     Write-Host "Removing WinRE"
     & 'takeown' '/f' "$mainOSDrive\scratchdir\Windows\System32\Recovery" '/r'
@@ -720,9 +734,12 @@ Write-Host "Disabling BitLocker Device Encryption"
 Write-Host "Disabling Chat icon:"
 & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Chat' '/v' 'ChatIcon' '/t' 'REG_DWORD' '/d' '3' '/f' | Out-Null
 & 'reg' 'add' 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' '/v' 'TaskbarMn' '/t' 'REG_DWORD' '/d' '0' '/f' | Out-Null
-Write-Host "Removing Edge related registries"
-reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" /f | Out-Null
-reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update" /f | Out-Null
+# Honor RemoveEdge parameter from workflow
+if ($RemoveEdge -eq 'yes') {
+    Write-Host "Removing Edge related registries"
+    reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" /f | Out-Null
+    reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update" /f | Out-Null
+}
 Write-Host "Disabling OneDrive folder backup"
 & 'reg' 'add' "HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive" '/v' 'DisableFileSyncNGSC' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
 Write-Host "Disabling Telemetry:"
@@ -786,20 +803,25 @@ Write-Host "Disabling Windows Update..."
 & 'reg' 'delete' 'HKLM\zSYSTEM\ControlSet001\Services\WaaSMedicSVC' '/f'
 & 'reg' 'delete' 'HKLM\zSYSTEM\ControlSet001\Services\UsoSvc' '/f'
 & 'reg' 'add' 'HKEY_LOCAL_MACHINE\zSOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' '/v' 'NoAutoUpdate' '/t' 'REG_DWORD' '/d' '1' '/f'
-Write-Host "Disabling Windows Defender"
-# Set registry values for Windows Defender services
-$servicePaths = @(
-    "WinDefend",
-    "WdNisSvc",
-    "WdNisDrv",
-    "WdFilter",
-    "Sense"
-)
+# Honor RemoveDefender parameter from workflow
+if ($RemoveDefender -eq 'yes') {
+    Write-Host "Disabling Windows Defender"
+    # Set registry values for Windows Defender services
+    $servicePaths = @(
+        "WinDefend",
+        "WdNisSvc",
+        "WdNisDrv",
+        "WdFilter",
+        "Sense"
+    )
 
-foreach ($path in $servicePaths) {
-    Set-ItemProperty -Path "HKLM:\zSYSTEM\ControlSet001\Services\$path" -Name "Start" -Value 4
-}
-& 'reg' 'add' 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' '/v' 'SettingsPageVisibility' '/t' 'REG_SZ' '/d' 'hide:virus;windowsupdate' '/f' 
+    foreach ($path in $servicePaths) {
+        Set-ItemProperty -Path "HKLM:\zSYSTEM\ControlSet001\Services\$path" -Name "Start" -Value 4
+    }
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' '/v' 'SettingsPageVisibility' '/t' 'REG_SZ' '/d' 'hide:virus;windowsupdate' '/f'
+} else {
+    Write-Host "Keeping Windows Defender enabled (RemoveDefender=no)"
+} 
 Write-Host "Tweaking complete!"
 Write-Host "Unmounting Registry..."
 reg unload HKLM\zCOMPONENTS >null
