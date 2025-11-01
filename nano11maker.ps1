@@ -387,8 +387,8 @@ $patternsToRemove = @(
     'mfd*',      # Multi-function device drivers
     'wscsmd.inf*', # Smartcard readers
     'tapdrv*',   # Tape drives
-    'rdpbus.inf*', # Remote Desktop virtual bus
-    # 'tdibth.inf*'  # Bluetooth Personal Area Network - KEPT to preserve Bluetooth functionality
+    'rdpbus.inf*'  # Remote Desktop virtual bus
+    # 'tdibth.inf*' removed - KEPT to preserve Bluetooth functionality
 )
 
 # Get all driver packages and remove the ones matching the patterns
@@ -512,41 +512,40 @@ if ($architecture -eq "amd64") {
             Copy-Item -Path $sourceDir.FullName -Destination $destDir -Recurse -Force
         }
     }
-}
- elseif ($architecture -eq "arm64") {
+} elseif ($architecture -eq "arm64") {
      $dirsToCopy = @(
         "arm64_microsoft-windows-servicingstack-onecore_31bf3856ad364e35_*",
-        "Catalogs"
-        "FileMaps"
-        "Fusion"
-        "InstallTemp"
-        "Manifests"
-        "SettingsManifests"
-        "Temp"
-        "x86_microsoft.vc80.crt_1fc8b3b9a1e18e3b_*"
-        "x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_*"
-        "x86_microsoft.windows.c..-controls.resources_6595b64144ccf1df_*"
-        "x86_microsoft.windows.common-controls_6595b64144ccf1df_*"
-        "x86_microsoft.windows.gdiplus_6595b64144ccf1df_*"
-        "x86_microsoft.windows.i..utomation.proxystub_6595b64144ccf1df_*"
-        "x86_microsoft.windows.isolationautomation_6595b64144ccf1df_*"
-        "arm_microsoft.windows.c..-controls.resources_6595b64144ccf1df_*"
-        "arm_microsoft.windows.common-controls_6595b64144ccf1df_*"
-        "arm_microsoft.windows.gdiplus_6595b64144ccf1df_*"
-        "arm_microsoft.windows.i..utomation.proxystub_6595b64144ccf1df_*"
-        "arm_microsoft.windows.isolationautomation_6595b64144ccf1df_*"
-        "arm64_microsoft.vc80.crt_1fc8b3b9a1e18e3b_*"
-        "arm64_microsoft.vc90.crt_1fc8b3b9a1e18e3b_*"
-        "arm64_microsoft.windows.c..-controls.resources_6595b64144ccf1df_*"
-        "arm64_microsoft.windows.common-controls_6595b64144ccf1df_*"
-        "arm64_microsoft.windows.gdiplus_6595b64144ccf1df_*"
-        "arm64_microsoft.windows.i..utomation.proxystub_6595b64144ccf1df_*"
-        "arm64_microsoft.windows.isolationautomation_6595b64144ccf1df_*"
-        "arm64_microsoft-windows-servicing-adm_31bf3856ad364e35_*"
-        "arm64_microsoft-windows-servicingcommon_31bf3856ad364e35_*"
-        "arm64_microsoft-windows-servicing-onecore-uapi_31bf3856ad364e35_*"
-        "arm64_microsoft-windows-servicingstack_31bf3856ad364e35_*"
-        "arm64_microsoft-windows-servicingstack-inetsrv_31bf3856ad364e35_*"
+        "Catalogs",
+        "FileMaps",
+        "Fusion",
+        "InstallTemp",
+        "Manifests",
+        "SettingsManifests",
+        "Temp",
+        "x86_microsoft.vc80.crt_1fc8b3b9a1e18e3b_*",
+        "x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_*",
+        "x86_microsoft.windows.c..-controls.resources_6595b64144ccf1df_*",
+        "x86_microsoft.windows.common-controls_6595b64144ccf1df_*",
+        "x86_microsoft.windows.gdiplus_6595b64144ccf1df_*",
+        "x86_microsoft.windows.i..utomation.proxystub_6595b64144ccf1df_*",
+        "x86_microsoft.windows.isolationautomation_6595b64144ccf1df_*",
+        "arm_microsoft.windows.c..-controls.resources_6595b64144ccf1df_*",
+        "arm_microsoft.windows.common-controls_6595b64144ccf1df_*",
+        "arm_microsoft.windows.gdiplus_6595b64144ccf1df_*",
+        "arm_microsoft.windows.i..utomation.proxystub_6595b64144ccf1df_*",
+        "arm_microsoft.windows.isolationautomation_6595b64144ccf1df_*",
+        "arm64_microsoft.vc80.crt_1fc8b3b9a1e18e3b_*",
+        "arm64_microsoft.vc90.crt_1fc8b3b9a1e18e3b_*",
+        "arm64_microsoft.windows.c..-controls.resources_6595b64144ccf1df_*",
+        "arm64_microsoft.windows.common-controls_6595b64144ccf1df_*",
+        "arm64_microsoft.windows.gdiplus_6595b64144ccf1df_*",
+        "arm64_microsoft.windows.i..utomation.proxystub_6595b64144ccf1df_*",
+        "arm64_microsoft.windows.isolationautomation_6595b64144ccf1df_*",
+        "arm64_microsoft-windows-servicing-adm_31bf3856ad364e35_*",
+        "arm64_microsoft-windows-servicingcommon_31bf3856ad364e35_*",
+        "arm64_microsoft-windows-servicing-onecore-uapi_31bf3856ad364e35_*",
+        "arm64_microsoft-windows-servicingstack_31bf3856ad364e35_*",
+        "arm64_microsoft-windows-servicingstack-inetsrv_31bf3856ad364e35_*",
         "arm64_microsoft-windows-servicingstack-msg_31bf3856ad364e35_*"
     )
 }
