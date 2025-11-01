@@ -394,11 +394,52 @@ if ($EnableDebloat -eq 'yes' -and (Get-Module -Name tiny11-debloater)) {
                 $matches[1]
             }
         }
-    $packagePrefixes = 'Clipchamp.Clipchamp_', 'Microsoft.BingNews_', 'Microsoft.BingWeather_', 'Microsoft.GamingApp_', 'Microsoft.GetHelp_', 'Microsoft.Getstarted_', 'Microsoft.MicrosoftOfficeHub_', 'Microsoft.MicrosoftSolitaireCollection_', 'Microsoft.People_', 'Microsoft.PowerAutomateDesktop_', 'Microsoft.Todos_', 'Microsoft.WindowsAlarms_', 'microsoft.windowscommunicationsapps_', 'Microsoft.WindowsFeedbackHub_', 'Microsoft.WindowsMaps_', 'Microsoft.WindowsSoundRecorder_', 'Microsoft.Xbox.TCUI_', 'Microsoft.XboxGamingOverlay_', 'Microsoft.XboxGameOverlay_', 'Microsoft.XboxSpeechToTextOverlay_', 'Microsoft.YourPhone_', 'Microsoft.ZuneMusic_', 'Microsoft.ZuneVideo_', 'MicrosoftCorporationII.MicrosoftFamily_', 'MicrosoftCorporationII.QuickAssist_', 'MicrosoftTeams_', 'Microsoft.549981C3F5F10_', 'Microsoft.Windows.Copilot', 'MSTeams_', 'Microsoft.OutlookForWindows_', 'Microsoft.Windows.Teams_', 'Microsoft.Copilot_'
+    $packagePrefixes = 'Clipchamp.Clipchamp_', 'Microsoft.BingNews_', 'Microsoft.BingWeather_', 'Microsoft.GamingApp_', 'Microsoft.GetHelp_', 'Microsoft.Getstarted_', 'Microsoft.MicrosoftOfficeHub_', 'Microsoft.MicrosoftSolitaireCollection_', 'Microsoft.People_', 'Microsoft.PowerAutomateDesktop_', 'Microsoft.Todos_', 'Microsoft.WindowsAlarms_', 'microsoft.windowscommunicationsapps_', 'Microsoft.WindowsFeedbackHub_', 'Microsoft.WindowsMaps_', 'Microsoft.WindowsSoundRecorder_', 'Microsoft.Xbox.TCUI_', 'Microsoft.XboxGamingOverlay_', 'Microsoft.XboxGameOverlay_', 'Microsoft.XboxSpeechToTextOverlay_', 'Microsoft.YourPhone_', 'Microsoft.ZuneMusic_', 'Microsoft.ZuneVideo_', 'MicrosoftCorporationII.MicrosoftFamily_', 'MicrosoftCorporationII.QuickAssist_', 'MicrosoftTeams_', 'MSTeams_', 'Microsoft.OutlookForWindows_', 'Microsoft.Windows.Teams_'
+    
+    # Honor RemoveAI and RemoveStore parameters - filter out AI/Copilot and Store packages if they should be kept
+    if ($RemoveAI -eq 'no') {
+        # Remove AI/Copilot packages from removal list
+        $packagePrefixes = $packagePrefixes | Where-Object { $_ -notlike '*549981C3F5F10*' -and $_ -notlike '*Copilot*' }
+    } else {
+        # Add AI/Copilot packages if RemoveAI = yes
+        $packagePrefixes += 'Microsoft.549981C3F5F10_', 'Microsoft.Windows.Copilot', 'Microsoft.Copilot_'
+    }
+    
+    if ($RemoveStore -eq 'no') {
+        # Filter out Store packages (they will be kept)
+        # Note: Store packages are not in packagePrefixes list, they're handled separately
+        Write-Host "Keeping Microsoft Store (RemoveStore=no)" -ForegroundColor Green
+    }
 
     $packagesToRemove = $packages | Where-Object {
         $packageName = $_
-        $packagePrefixes -contains ($packagePrefixes | Where-Object { $packageName -like "$_*" })
+        $shouldRemove = $false
+        
+        # Check if package matches any prefix
+        foreach ($prefix in $packagePrefixes) {
+            if ($packageName -like "$prefix*") {
+                $shouldRemove = $true
+                break
+            }
+        }
+        
+        # Honor RemoveAI parameter - keep AI/Copilot packages if RemoveAI = no
+        if ($RemoveAI -eq 'no') {
+            if ($packageName -like '*Copilot*' -or $packageName -like '*549981C3F5F10*') {
+                $shouldRemove = $false
+                Write-Host "  Keeping AI package: $packageName" -ForegroundColor Gray
+            }
+        }
+        
+        # Honor RemoveStore parameter - keep Store packages if RemoveStore = no
+        if ($RemoveStore -eq 'no') {
+            if ($packageName -like '*WindowsStore*' -or $packageName -like '*StorePurchaseApp*' -or $packageName -like '*Store.Engagement*') {
+                $shouldRemove = $false
+                Write-Host "  Keeping Store package: $packageName" -ForegroundColor Gray
+            }
+        }
+        
+        $shouldRemove
     }
     foreach ($package in $packagesToRemove) {
         write-host "Removing $package :"
@@ -740,6 +781,26 @@ if ($RemoveEdge -eq 'yes') {
     reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge" /f | Out-Null
     reg delete "HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update" /f | Out-Null
 }
+
+# Honor RemoveAI parameter from workflow - disable Copilot/AI
+if ($RemoveAI -eq 'yes') {
+    Write-Host "Disabling Copilot/AI..."
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' '/v' 'TurnOffWindowsCopilot' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Edge' '/v' 'HubsSidebarEnabled' '/t' 'REG_DWORD' '/d' '0' '/f' | Out-Null
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Explorer' '/v' 'DisableSearchBoxSuggestions' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
+} else {
+    Write-Host "Keeping Copilot/AI enabled (RemoveAI=no)"
+}
+
+# Honor RemoveStore parameter from workflow - disable Store
+if ($RemoveStore -eq 'yes') {
+    Write-Host "Disabling Microsoft Store..."
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Policies\Microsoft\WindowsStore' '/v' 'RemoveWindowsStore' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
+    & 'reg' 'add' 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned' '/v' 'Microsoft.WindowsStore_8wekyb3d8bbwe' '/t' 'REG_SZ' '/d' '' '/f' | Out-Null
+} else {
+    Write-Host "Keeping Microsoft Store enabled (RemoveStore=no)"
+}
+
 Write-Host "Disabling OneDrive folder backup"
 & 'reg' 'add' "HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive" '/v' 'DisableFileSyncNGSC' '/t' 'REG_DWORD' '/d' '1' '/f' | Out-Null
 Write-Host "Disabling Telemetry:"
