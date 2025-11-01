@@ -68,6 +68,8 @@ on:
       - main
     paths:
       - '.github/workflows/build-nano.yml'
+    branches-ignore:
+      - '**'
 
 permissions:
   contents: read
@@ -115,16 +117,16 @@ jobs:
         shell: pwsh
         env:
           VERSION_SELECTOR:           ${{ github.event.inputs.version_selector || 'Auto' }}
-          REMOVE_DEFENDER:            ${{ github.event.inputs.remove_defender || 'true' }}
-          REMOVE_AI:                  ${{ github.event.inputs.remove_ai || 'true' }}
-          REMOVE_EDGE:                ${{ github.event.inputs.remove_edge || 'true' }}
-          REMOVE_STORE:               ${{ github.event.inputs.remove_store || 'true' }}
-          REMOVE_PRINTER_DRIVERS:     ${{ github.event.inputs.remove_printer_drivers || 'true' }}
-          REMOVE_SCANNER_DRIVERS:     ${{ github.event.inputs.remove_scanner_drivers || 'true' }}
-          REMOVE_BLUETOOTH_DRIVERS:   ${{ github.event.inputs.remove_bluetooth_drivers || 'true' }}
-          REMOVE_SMARTCARD_DRIVERS:   ${{ github.event.inputs.remove_smartcard_drivers || 'true' }}
-          REMOVE_TAPE_DRIVERS:        ${{ github.event.inputs.remove_tape_drivers || 'true' }}
-          REMOVE_RDP_DRIVERS:         ${{ github.event.inputs.remove_rdp_drivers || 'true' }}
+          REMOVE_DEFENDER:            ${{ github.event.inputs.remove_defender != false && 'true' || 'false' }}
+          REMOVE_AI:                  ${{ github.event.inputs.remove_ai != false && 'true' || 'false' }}
+          REMOVE_EDGE:                ${{ github.event.inputs.remove_edge != false && 'true' || 'false' }}
+          REMOVE_STORE:               ${{ github.event.inputs.remove_store != false && 'true' || 'false' }}
+          REMOVE_PRINTER_DRIVERS:     ${{ github.event.inputs.remove_printer_drivers != false && 'true' || 'false' }}
+          REMOVE_SCANNER_DRIVERS:     ${{ github.event.inputs.remove_scanner_drivers != false && 'true' || 'false' }}
+          REMOVE_BLUETOOTH_DRIVERS:   ${{ github.event.inputs.remove_bluetooth_drivers != false && 'true' || 'false' }}
+          REMOVE_SMARTCARD_DRIVERS:   ${{ github.event.inputs.remove_smartcard_drivers != false && 'true' || 'false' }}
+          REMOVE_TAPE_DRIVERS:        ${{ github.event.inputs.remove_tape_drivers != false && 'true' || 'false' }}
+          REMOVE_RDP_DRIVERS:         ${{ github.event.inputs.remove_rdp_drivers != false && 'true' || 'false' }}
         run: |
           $ErrorActionPreference = 'Stop'
           # Lấy drive ISO (E:, F:, ...)
