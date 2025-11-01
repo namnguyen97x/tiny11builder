@@ -12,7 +12,15 @@ param (
     [ValidateSet('yes','no')][string]$RemoveDefender = 'yes',
     [ValidateSet('yes','no')][string]$RemoveAI = 'yes',
     [ValidateSet('yes','no')][string]$RemoveEdge = 'yes',
-    [ValidateSet('yes','no')][string]$RemoveStore = 'yes'
+    [ValidateSet('yes','no')][string]$RemoveStore = 'yes',
+    
+    # Driver removal options (honored from workflow)
+    [ValidateSet('yes','no')][string]$RemovePrinterDrivers = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveScannerDrivers = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveBluetoothDrivers = 'no',
+    [ValidateSet('yes','no')][string]$RemoveSmartcardDrivers = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveTapeDrivers = 'yes',
+    [ValidateSet('yes','no')][string]$RemoveRdpDrivers = 'yes'
 )
 
 # Set error handling to continue on non-critical errors
@@ -381,15 +389,30 @@ Write-Host "Performing aggressive manual file deletions..."
 $winDir = "$scratchDir\Windows"
 Write-Host "Slimming the DriverStore... (removing non-essential driver classes)"
 $driverRepo = Join-Path -Path $winDir -ChildPath "System32\DriverStore\FileRepository"
-$patternsToRemove = @(
-    'prn*',      # Printer drivers (e.g., prnms001.inf, prnge001.inf)
-    'scan*',     # Scanner drivers
-    'mfd*',      # Multi-function device drivers
-    'wscsmd.inf*', # Smartcard readers
-    'tapdrv*',   # Tape drives
-    'rdpbus.inf*'  # Remote Desktop virtual bus
-    # 'tdibth.inf*' removed - KEPT to preserve Bluetooth functionality
-)
+$patternsToRemove = @()
+
+# Add driver patterns based on parameters
+if ($RemovePrinterDrivers -eq 'yes') {
+    $patternsToRemove += 'prn*'  # Printer drivers (e.g., prnms001.inf, prnge001.inf)
+}
+if ($RemoveScannerDrivers -eq 'yes') {
+    $patternsToRemove += 'scan*'  # Scanner drivers
+    $patternsToRemove += 'mfd*'  # Multi-function device drivers
+}
+if ($RemoveSmartcardDrivers -eq 'yes') {
+    $patternsToRemove += 'wscsmd.inf*'  # Smartcard readers
+}
+if ($RemoveTapeDrivers -eq 'yes') {
+    $patternsToRemove += 'tapdrv*'  # Tape drives
+}
+if ($RemoveRdpDrivers -eq 'yes') {
+    $patternsToRemove += 'rdpbus.inf*'  # Remote Desktop virtual bus
+}
+if ($RemoveBluetoothDrivers -eq 'yes') {
+    $patternsToRemove += 'tdibth.inf*'  # Bluetooth Personal Area Network
+}
+
+Write-Host "Driver removal settings: Printer=$RemovePrinterDrivers, Scanner=$RemoveScannerDrivers, Bluetooth=$RemoveBluetoothDrivers, Smartcard=$RemoveSmartcardDrivers, Tape=$RemoveTapeDrivers, RDP=$RemoveRdpDrivers"
 
 # Get all driver packages and remove the ones matching the patterns
 Get-ChildItem -Path $driverRepo -Directory -ErrorAction SilentlyContinue | ForEach-Object {
