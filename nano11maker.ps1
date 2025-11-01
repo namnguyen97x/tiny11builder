@@ -388,7 +388,7 @@ $patternsToRemove = @(
     'wscsmd.inf*', # Smartcard readers
     'tapdrv*',   # Tape drives
     'rdpbus.inf*', # Remote Desktop virtual bus
-    'tdibth.inf*'  # Bluetooth Personal Area Network
+    # 'tdibth.inf*'  # Bluetooth Personal Area Network - KEPT to preserve Bluetooth functionality
 )
 
 # Get all driver packages and remove the ones matching the patterns
@@ -737,8 +737,8 @@ $servicesToRemove = @(
     # 'AudioEndpointBuilder', # CRITICAL: Dependency for Audiosrv.
     'MapsBroker', 
     'WalletService', 
-    'BthAvctpSvc', 
-    'BluetoothUserService', 
+    # 'BthAvctpSvc', # KEPT to preserve Bluetooth functionality
+    # 'BluetoothUserService', # KEPT to preserve Bluetooth functionality
     # 'WbioSrvc', # RISKY: Can cause logon screen to hang.
     'wuauserv', 
     'UsoSvc', 
