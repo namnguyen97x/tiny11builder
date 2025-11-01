@@ -18,22 +18,22 @@ on:
         default: 'Auto'
         type: string
       remove_defender:
-        description: 'MAKER ONLY: Remove Windows Defender (default: false)'
+        description: 'Remove Windows Defender (applies to maker and core, default: false)'
         required: false
         default: 'false'
         type: string
       remove_ai:
-        description: 'MAKER ONLY: Remove AI/Copilot components (default: true)'
+        description: 'Remove AI/Copilot components (applies to maker and core, default: true)'
         required: false
         default: 'true'
         type: string
       remove_edge:
-        description: 'MAKER ONLY: Remove Microsoft Edge browser (default: true)'
+        description: 'Remove Microsoft Edge browser (applies to maker and core, default: true)'
         required: false
         default: 'true'
         type: string
       remove_store:
-        description: 'MAKER ONLY: Remove Microsoft Store (default: true)'
+        description: 'Remove Microsoft Store (applies to maker and core, default: true)'
         required: false
         default: 'true'
         type: string
@@ -62,22 +62,22 @@ on:
           - Home
           - ProWorkstations
       remove_defender:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Windows Defender'
+        description: 'Remove Windows Defender (applies to maker and core)'
         required: false
         default: false
         type: boolean
       remove_ai:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove AI/Copilot components'
+        description: 'Remove AI/Copilot components (applies to maker and core)'
         required: false
         default: true
         type: boolean
       remove_edge:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Edge browser'
+        description: 'Remove Microsoft Edge browser (applies to maker and core)'
         required: false
         default: true
         type: boolean
       remove_store:
-        description: '⚠️ MAKER ONLY (ignored for core): Remove Microsoft Store'
+        description: 'Remove Microsoft Store (applies to maker and core)'
         required: false
         default: true
         type: boolean
