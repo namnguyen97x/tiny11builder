@@ -47,7 +47,6 @@ on:
         options:
           - maker
           - core
-          - nano
       iso_url:
         description: 'Windows ISO URL (leave empty to use default Windows 11 25H2 ISO)'
         required: false
@@ -232,7 +231,6 @@ jobs:
           $buildType = $env:BUILD_TYPE
           $scriptName = switch ($buildType) {
             'core' { 'tiny11Coremaker.ps1' }
-            'nano' { 'nano11maker.ps1' }
             default { 'tiny11maker.ps1' }
           }
           
@@ -244,34 +242,27 @@ jobs:
           $buildParams['VersionSelector'] = $versionSelector
           Write-Host "Version selector: $versionSelector"
           
-          # Add optional debloat parameters only for maker
-          if ($buildType -eq 'maker') {
-            Write-Host "Adding optional debloat parameters for maker..."
-            
-            # Use environment variables with defaults
-            $removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'false' }
-            $removeAI = if ($env:REMOVE_AI) { $env:REMOVE_AI } else { 'true' }
-            $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'true' }
-            $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
-            
-            # Convert true/false to yes/no for script parameters
-            $buildParams['RemoveDefender'] = if ($removeDefender -eq 'true') { 'yes' } else { 'no' }
-            $buildParams['RemoveAI'] = if ($removeAI -eq 'true') { 'yes' } else { 'no' }
-            $buildParams['RemoveEdge'] = if ($removeEdge -eq 'true') { 'yes' } else { 'no' }
-            $buildParams['RemoveStore'] = if ($removeStore -eq 'true') { 'yes' } else { 'no' }
-            
-            Write-Host "Debloat options: Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
-          } elseif ($buildType -eq 'core') {
-            Write-Host "Core maker selected - optional debloat parameters ignored (core has fixed settings)"
-          } elseif ($buildType -eq 'nano') {
-            Write-Host "Nano maker selected - optional debloat parameters ignored (nano has aggressive fixed settings)"
-          }
+          # Add optional debloat parameters for all build types (maker, core, nano)
+          # All build types now honor workflow debloat settings
+          Write-Host "Adding optional debloat parameters..."
+          
+          # Use environment variables with defaults
+          $removeDefender = if ($env:REMOVE_DEFENDER) { $env:REMOVE_DEFENDER } else { 'false' }
+          $removeAI = if ($env:REMOVE_AI) { $env:REMOVE_AI } else { 'true' }
+          $removeEdge = if ($env:REMOVE_EDGE) { $env:REMOVE_EDGE } else { 'true' }
+          $removeStore = if ($env:REMOVE_STORE) { $env:REMOVE_STORE } else { 'true' }
+          
+          # Convert true/false to yes/no for script parameters
+          $buildParams['RemoveDefender'] = if ($removeDefender -eq 'true') { 'yes' } else { 'no' }
+          $buildParams['RemoveAI'] = if ($removeAI -eq 'true') { 'yes' } else { 'no' }
+          $buildParams['RemoveEdge'] = if ($removeEdge -eq 'true') { 'yes' } else { 'no' }
+          $buildParams['RemoveStore'] = if ($removeStore -eq 'true') { 'yes' } else { 'no' }
+          
+          Write-Host "Debloat options ($buildType): Defender=$removeDefender, AI=$removeAI, Edge=$removeEdge, Store=$removeStore"
           
           Write-Host "Running: $scriptName"
           Write-Host "Parameters: ISO=$($buildParams['ISO']), NonInteractive=$($buildParams['NonInteractive']), VersionSelector=$($buildParams['VersionSelector'])"
-          if ($buildType -eq 'maker') {
-            Write-Host "  Debloat: Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
-          }
+          Write-Host "  Debloat: Defender=$($buildParams['RemoveDefender']), AI=$($buildParams['RemoveAI']), Edge=$($buildParams['RemoveEdge']), Store=$($buildParams['RemoveStore'])"
           
           # Run the builder script with splatting
           # Catch errors but continue - scripts have their own error handling
@@ -296,7 +287,6 @@ jobs:
           
           # Check if ISO was created (different names for different build types)
           $isoName = switch ($buildType) {
-            'nano' { 'nano11.iso' }
             'core' { 'tiny11-core.iso' }
             default { 'tiny11.iso' }
           }
@@ -326,7 +316,6 @@ jobs:
           path: |
             tiny11.iso
             tiny11-core.iso
-            nano11.iso
             *.log
           retention-days: 7
           compression-level: 0
